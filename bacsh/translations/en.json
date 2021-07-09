@@ -1,0 +1,12 @@
+{
+	"listsubdesc": "Lists loaded/active modules in the bachd daemon",
+	"listsubdescrunning": "Lists only running modules",
+	"statussubdesc": "Gets the status of a specific module",
+	"statussubdescname": "Name of the module to display",
+	"firesubdesc": "Sends a Fire request towards a specific module",
+	"firesubdescname": "Name of the module to fire",
+	"stopsubdesc": "Stops a specific module from running",
+	"stopsubdescname": "Name of the module to stop",
+	"termdesc": "Stops every module and then the daemon",
+	"desc": "Command line utility for the bachd backup manager daemon"
+}

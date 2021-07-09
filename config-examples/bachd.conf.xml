@@ -1,0 +1,10 @@
+<DaemonConfig>
+	<port>6060</port>
+	<ip>127.0.0.1</ip>
+	<log-level>warn</log-level>
+	<module-manager respawn_duration="60">
+		<modules cyclic="true" file="./target/debug/libdummy.so">
+			<whence year="0" month="0" day="0" hour="0" min="1"/>
+		</modules>
+	</module-manager>
+</DaemonConfig>

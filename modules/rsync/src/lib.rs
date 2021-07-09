@@ -1,0 +1,348 @@
+use bach_bus::packet::*;
+use bach_module::*;
+use std::cell::RefCell;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, AtomicU8, Ordering},
+    Arc, Mutex,
+};
+use std::thread;
+use std::time::{Duration, Instant};
+
+pub mod host;
+pub mod rsynconfig;
+
+use rsynconfig::*;
+
+pub struct Rsync {
+    ctrl: Arc<AtomicU8>,
+    out_alive: Arc<AtomicBool>,
+    config_file: PathBuf,
+    out_stack: Arc<Mutex<RefCell<Vec<Packet>>>>,
+}
+
+impl Rsync {
+    pub fn new(config_filename: Option<String>) -> Self {
+        Rsync {
+            ctrl: Arc::new(AtomicU8::new(0)),
+            out_alive: Arc::new(AtomicBool::new(false)),
+            config_file: PathBuf::from(config_filename.unwrap_or("".to_string())),
+            out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
+        }
+    }
+}
+
+fn perform_checks(
+    item: &RsynConfigItem,
+    stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
+    label: &str,
+) -> bool {
+    let check_target = item.check_target();
+    let check_device = item.check_device();
+    let check_host = item.check_host_ping();
+    let lock_generr = move |format: String| -> bool {
+        match stack.lock() {
+            Ok(cell) => {
+                cell.borrow_mut()
+                    .push(Packet::new_ne(&format, &label, "Prelude checks"));
+            }
+            Err(_) => (),
+        }
+        false
+    };
+
+    if check_target.is_err() {
+        lock_generr(format!("Target {} not testable", item.get_desc()))
+    } else if check_device.is_err() {
+        lock_generr(format!("Target device {} not testable", item.get_desc()))
+    } else if !check_host {
+        lock_generr(format!("Target {} host not reachable", item.get_desc()))
+    } else if !check_target.unwrap() {
+        lock_generr(format!("Target {} not reachable", item.get_desc()))
+    } else if !check_device.unwrap() {
+        lock_generr(format!("Target device {} not reachable", item.get_desc()))
+    } else {
+        true
+    }
+}
+
+fn process_rsync_exit_code(
+    item: &RsynConfigItem,
+    code: Option<i32>,
+    stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
+    label: &str
+) {
+    let lock_genwarn = move |format: &str| match stack.lock() {
+        Ok(cell) => {
+            cell.borrow_mut().push(Packet::new_nw(
+                &format!("Target {} : {}", item.get_desc(), format),
+                &label,
+                "Exit",
+            ));
+        }
+        Err(_) => (),
+    };
+
+    let lock_generr = move |format: &str| match stack.lock() {
+        Ok(cell) => {
+            cell.borrow_mut().push(Packet::new_ne(
+                &format!("Target {} : {}", item.get_desc(), format),
+                &label,
+                "Exit",
+            ));
+        }
+        Err(_) => (),
+    };
+
+    let lock_gengood = move |format: &str| match stack.lock() {
+        Ok(cell) => {
+            cell.borrow_mut().push(Packet::new_ne(
+                &format!("Target {} : {}", item.get_desc(), format),
+                &label,
+                "Exit",
+            ));
+        }
+        Err(_) => (),
+    };
+
+    if code.is_none() {
+        return lock_generr("Rsync is not supposed to return nothing !");
+    }
+
+    match code.unwrap() {
+        0 => lock_gengood("Ok"),
+        1 => lock_generr("Syntax or usage error"),
+        2 => lock_generr("Incompatible protocol"),
+        3 => lock_generr("I/O Files selection error"),
+        4 => lock_generr("Unsupported action"),
+        5 => lock_generr("Client/Server startup error"),
+        6 => lock_generr("Could not open log file"),
+        10 => lock_generr("I/O socket error"),
+        11 => lock_generr("I/O file error"),
+        12 => lock_generr("Data flow error"),
+        13 => lock_generr("Diagnostic error"),
+        14 => lock_generr("IPC error"),
+        20 => lock_generr("Killed by user"),
+        21 => lock_generr("Waitpid() failed"),
+        22 => lock_generr("Buffer allocation error"),
+        23 => lock_genwarn("Partial transfer due to modified files during backup"),
+        24 => lock_genwarn("Partial transfer due to modified files during backup"),
+        25 => lock_genwarn("Max delete limit reached, suppressions stopped"),
+        30 => lock_generr("Timeout rx/tx error"),
+        31 => lock_generr("Connection timeout error"),
+        127 => lock_generr("Rsync executable is corrupted"),
+        255 => lock_generr("Ssh disconnected"),
+        _ => lock_generr("Unexpected return code"),
+    }
+}
+
+impl Module for Rsync {
+    fn name(&self) -> String {
+        let conf: RsynConfig =
+            match quick_xml::de::from_reader(BufReader::new(match File::open(&self.config_file) {
+                Ok(f) => f,
+                Err(e) => {
+                    return format!(
+                        "{} : {}",
+                        self.config_file.to_str().unwrap_or("NOT FOUND"),
+                        e.to_string()
+                    )
+                }
+            })) {
+                Ok(conf) => conf,
+                Err(e) => return e.to_string(),
+            };
+
+        conf.label
+    }
+
+    fn init(&self) -> ModResult<()> {
+        self.out_stack
+            .lock()?
+            .borrow_mut()
+            .push(if self.name().contains("error") {
+                Packet::new_ne("ERROR", &self.name(), "Init")
+            } else {
+                Packet::new_ng(&format!("{} rsync module initialized", self.name()), &self.name(), "Init")
+            });
+        Ok(())
+    }
+
+    fn accept(&self, p: Packet) -> bool {
+        match p {
+            Packet::BackupCom(core) => match BackupCommand::from(core) {
+                BackupCommand::Fire(e) => match e {
+                    Some(s) => s.eq(&self.name()),
+                    None => false,
+                },
+                _ => false,
+            },
+            Packet::Terminate => true,
+            Packet::Stop(_) => true,
+            _ => false,
+        }
+    }
+
+    fn inlet(&self, p: Packet) {
+        match p {
+            Packet::BackupCom(_) => {
+                if self.ctrl.load(Ordering::SeqCst) != 3 {
+                    self.ctrl.store(1, Ordering::SeqCst);
+                }
+            }
+            Packet::Terminate => {
+                self.ctrl.store(2, Ordering::SeqCst);
+            }
+            Packet::Stop(core) => {
+                let name = core_2_string(&core);
+                if name.eq(&self.name()) {
+                    self.ctrl.store(2, Ordering::SeqCst);
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn destroy(&self) -> ModResult<()> {
+        Ok(())
+    }
+
+    fn outlet(&self) -> Option<Packet> {
+        if self.out_alive.load(Ordering::SeqCst) {
+            self.out_alive.store(false, Ordering::SeqCst);
+            Some(Packet::new_alive(&self.name()))
+        } else {
+            match self.out_stack.lock() {
+                Ok(cell) => cell.borrow_mut().pop(),
+                Err(_) => None,
+            }
+        }
+    }
+
+    fn spawn(&self) -> thread::JoinHandle<ModResult<()>> {
+        let ctrlc = self.ctrl.clone();
+        let alivc = self.out_alive.clone();
+        let stackc = self.out_stack.clone();
+        let confc = Arc::new(Mutex::new(PathBuf::from(&self.config_file)));
+        let name = Arc::new(Mutex::new(RefCell::new(self.name())));
+
+        thread::spawn(move || -> ModResult<()> {
+            let confcc = confc.clone();
+            let run = Arc::new(AtomicBool::new(true));
+            let runc = run.clone();
+            let alivcc = alivc.clone();
+            let aliveth = thread::spawn(move || {
+                while runc.load(Ordering::SeqCst) {
+                    alivcc.store(true, Ordering::SeqCst);
+                    thread::sleep(Duration::from_secs(2));
+                }
+            });
+            let namec = name.clone();
+            while run.load(Ordering::SeqCst) {
+                let c = ctrlc.load(Ordering::SeqCst);
+                if c == 1 {
+                    ctrlc.store(3, Ordering::SeqCst);
+                    let config: RsynConfig = quick_xml::de::from_reader(BufReader::new(
+                        File::open(confcc.lock()?.as_path())?,
+                    ))?;
+                    for item in config.synchros {
+                        let namecc = namec.lock()?.borrow().to_string();
+                        if perform_checks(&item, &stackc, &namecc) {
+                            let mount = item.mount_target();
+                            if mount.is_err() {
+                                stackc.lock()?.borrow_mut().push(Packet::new_ne(&format!(
+                                    "Unable to mount target {}",
+                                    item.get_desc()
+                                ), &namecc, "Mount"));
+                            } else {
+                                if !mount.unwrap() {
+                                    stackc.lock()?.borrow_mut().push(Packet::new_ne(&format!(
+                                        "Unable to mount target {}",
+                                        item.get_desc()
+                                    ), &namecc , "Mount"));
+                                } else {
+                                    let mut cmd = item.to_cmd();
+                                    let mut child = cmd.spawn()?;
+
+                                    stackc.lock()?.borrow_mut().push(Packet::LoggerCom(
+                                        PacketCore::from(LoggerCommand::Write(format!(
+                                            "Command {:?} successfully launched on target {}",
+                                            &cmd,
+                                            item.get_desc()
+                                        ))),
+                                    ));
+
+                                    let start = Instant::now();
+                                    let ctrlcc = ctrlc.clone();
+                                    let mut run = true;
+                                    let mut w = None;
+                                    while ctrlcc.load(Ordering::SeqCst) == 3 && run {
+                                        w = child.try_wait()?;
+                                        if w.is_some() {
+                                            run = false;
+                                        }
+
+                                        match item.timeout {
+                                            Some(d) => {
+                                                if start.elapsed().gt(&Duration::from_secs(d * 60))
+                                                {
+                                                    run = false;
+                                                    ctrlcc.store(2, Ordering::SeqCst);
+                                                }
+                                            }
+                                            None => (),
+                                        }
+                                    }
+
+                                    if ctrlcc.load(Ordering::SeqCst) == 2 {
+                                        child.kill()?;
+                                        stackc.lock()?.borrow_mut().push(Packet::new_nw(&format!(
+                                            "Synchro for target {} killed before end",
+                                            item.get_desc()
+                                        ), &namecc, "End"));
+                                        w = Some(child.wait()?);
+                                    }
+
+                                    process_rsync_exit_code(&item, w.unwrap().code(), &stackc, &namecc);
+                                    match item.umount_target() {
+                                        Ok(b) => {
+                                            if !b {
+                                                stackc.lock()?.borrow_mut().push(Packet::new_nw(
+                                                    &format!(
+                                                        "Target {} was not unmounted",
+                                                        item.get_desc(),
+                                                    ),
+                                                    &namecc,
+                                                    "Unmount",
+                                                ));
+                                            }
+                                        }
+                                        Err(_) => {
+                                            stackc.lock()?.borrow_mut().push(Packet::new_ne(
+                                                &format!(
+                                                    "Target {} unmount crashed",
+                                                    item.get_desc()
+                                                ),
+                                                &namecc,
+                                                "Unmount",
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        } else if c == 2 {
+                            run.store(false, Ordering::SeqCst);
+                        }
+                    }
+                }
+            }
+            aliveth.join().unwrap();
+            Ok(())
+        })
+    }
+}
+
+#[cfg(feature = "modular")]
+mk_create_module!(Rsync, Rsync::new);

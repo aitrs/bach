@@ -1,0 +1,31 @@
+use crate::queue::Queue;
+use crate::packet::Packet;
+
+pub type Preempt = Box<dyn Fn(Packet) + Send + Sync + 'static>;
+pub type Watch = Box<dyn Fn(&Packet) -> bool + Send + Sync + 'static>;
+pub type Out = Box<dyn Fn() -> Packet + Send + Sync + 'static>;
+
+#[derive(Debug, Clone, Sync, Send)]
+pub struct BusConnection {
+    p: Preempt,
+    w: Watch,
+    o: Out,
+}
+
+impl BusConnection 
+
+pub struct Bus {
+    cable: Queue<Packet>,
+    
+
+}
+
+impl Bus {
+    pub fn new() -> Self {
+        Bus {
+            cable: Queue::new(),
+        }
+    }
+
+
+}

@@ -1,0 +1,15 @@
+[workspace]
+members = [
+	"bachd",
+	"bacsh",
+	"modules/dummy",
+	"modules/stdlogger",
+	"modules/rsync",
+	"modules/noreply-select",
+	"bach-module",
+	"bach-bus",
+]
+
+exclude = [
+]
+

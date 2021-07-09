@@ -1,0 +1,12 @@
+{
+	"listsubdesc": "Liste les modules chargés dans le service",
+	"listsubdescrunning": "Liste uniquement les modules en cours d'exécution",
+	"statussubdesc": "Donne l'état d'un ou plusieurs module",
+	"statussubdescname": "nom du module à afficher",
+	"firesubdesc": "Envoyer un signal 'FIRE' à un module spécifique (Déclenchement)",
+	"firesubdescname": "Nom du module à déclencer",
+	"stopsubdesc": "Arrête un module",
+	"stopsubdescname": "Nom du module à arrêter",
+	"termdesc": "Arrête tous les modules et clot le service",
+	"desc": "Utilitaire en ligne de commande pour le service bachd"
+}

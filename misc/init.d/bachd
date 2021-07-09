@@ -1,0 +1,50 @@
+#!/bin/sh
+. /etc/init.d/functions
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+RETVAL=0
+export BACH_DEFAULT_CONFIG=/etc/bach/daemon.xml
+start()
+{
+    running=$(ps aux | grep bachd | wc -l)
+    if [ $running -gt 4 ] ; then
+        echo "Bachd is already running"
+        RETVAL=1
+    else
+        daemon /usr/bin/bachd 2>&1 > /dev/null &
+        disown
+        success
+        echo  ""
+    fi
+}
+
+stop()
+{
+    killall bachd
+    success
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    status)
+        status bachd
+        RETVAL=$?
+        ;;
+    condrestart)
+        stop
+        start
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|restart|status|condrestart}"
+        exit 1
+esac
+exit $RETVAL
+
