@@ -27,9 +27,10 @@ impl<'z> BusConnection {
     }
 
     pub fn perform(&mut self, p: Option<Packet>) -> Option<Packet> {
-        if p.is_some() {
-            if (self.w)(p.unwrap()) {
-                (self.p)(p.unwrap());
+       
+        if let Some(pp) = p {
+            if (self.w)(pp) {
+                (self.p)(pp);
             }
         }
 
@@ -40,6 +41,12 @@ impl<'z> BusConnection {
 pub struct Bus {
     cable: Queue<Packet>,
     connections: RefCell<Vec<BusConnection>>,
+}
+
+impl Default for Bus {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Bus {
@@ -58,11 +65,8 @@ impl Bus {
         let mut conns = self.connections.borrow_mut();
         let next = self.cable.consume();
         for c in conns.iter_mut() {
-            match c.perform(next) {
-                Some(out_packet) => {
-                    self.cable.push(out_packet);
-                }
-                None => (),
+            if let Some(out_packet) = c.perform(next) {
+                self.cable.push(out_packet);
             }
         }
     }
