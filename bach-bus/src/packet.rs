@@ -369,13 +369,8 @@ impl From<BackupCommand> for PacketCore {
                     maxlen
                 };
                 let mut ret = write_header("CHHC", n);
-                for i in 0..ulen {
-                    ret[i + start1] = ubytes[i];
-                }
-
-                for i in 0..plen {
-                    ret[i + start2] = pbytes[i];
-                }
+                ret[start1..ulen+start1].clone_from_slice(&ubytes[..ulen]);
+                ret[start2..plen+start2].clone_from_slice(&pbytes[..plen]);
 
                 ret
             }
@@ -413,26 +408,18 @@ impl From<LoggerCommand> for PacketCore {
             LoggerCommand::Write(s) => {
                 let b = s.as_bytes();
                 let h = b"WRIT";
-
-                for i in 0..4 {
-                    ret[i] = h[i];
-                }
-
+                ret[..4].clone_from_slice(&h[..4]);
+                
                 let len = if b.len() < CORE_SIZE - 4 {
                     b.len()
                 } else {
                     CORE_SIZE - 4
                 };
-
-                for i in 0..len {
-                    ret[i + 4] = b[i];
-                }
+                ret[4..len+4].clone_from_slice(&b[..len]);
             }
             _ => {
                 let h = b"WRIT";
-                for i in 0..4 {
-                    ret[i] = h[i];
-                }
+                ret[..4].clone_from_slice(&h[..4]);
             }
         }
 
