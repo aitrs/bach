@@ -133,6 +133,12 @@ impl<T: Copy> Queue<T> {
     }
 }
 
+impl<T: Copy> Default for Queue<T> {
+    fn default() -> Self {
+        Queue::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::queue::Queue;

@@ -72,9 +72,9 @@ macro_rules! mk_core_bytes {
 
 pub fn core_2_string(s: &[u8]) -> String {
     let mut ret = String::new();
-    for i in 0..s.len() {
-        if s[i] != 0u8 {
-            ret.push(s[i] as char);
+    for c in s {
+        if *c != 0u8 {
+            ret.push(*c as char);
         }
     }
     ret
@@ -116,7 +116,7 @@ impl From<PacketCore> for NotifyCommand {
         };
 
         let core_name = core_2_string(&item[4..CORE_SIZE]);
-        let name = if core_name.len() > 0 {
+        let name = if !core_name.is_empty() {
             Some(core_name)
         } else {
             None
@@ -136,9 +136,8 @@ impl From<NotifyCommand> for PacketCore {
     fn from(item: NotifyCommand) -> Self {
         let str2ret = |s: &[u8], opt: Option<String>| {
             let mut ret = [0u8; CORE_SIZE];
-            for i in 0..4 {
-                ret[i] = s[i];
-            }
+            ret[..4].clone_from_slice(&s[..4]);
+
             let n = match &opt {
                 Some(st) => st.as_bytes(),
                 None => "".as_bytes(),
@@ -149,9 +148,8 @@ impl From<NotifyCommand> for PacketCore {
             } else {
                 NAME_SIZE
             };
-            for i in 0..len {
-                ret[i + 4] = n[i]
-            }
+            ret[4..len+4].clone_from_slice(&n[..len]);
+
             ret
         };
         match item {
@@ -181,7 +179,7 @@ impl From<PacketCore> for WatchCommand {
         };
 
         let core_name = core_2_string(&item[4..NAME_SIZE]);
-        let name = if core_name.len() > 0 {
+        let name = if !core_name.is_empty() {
             Some(core_name)
         } else {
             None
@@ -202,10 +200,7 @@ impl From<WatchCommand> for PacketCore {
     fn from(item: WatchCommand) -> Self {
         let str2ret = |pre: &[u8], opt: Option<String>, s: &str| {
             let mut ret = [0u8; CORE_SIZE];
-
-            for i in 0..4 {
-                ret[i] = pre[i];
-            }
+            ret[..4].clone_from_slice(&pre[..4]);
             let bytes = s.as_bytes();
 
             let n = match &opt {
@@ -217,10 +212,7 @@ impl From<WatchCommand> for PacketCore {
             } else {
                 NAME_SIZE
             };
-
-            for i in 0..nlen {
-                ret[i + 4] = n[i];
-            }
+            ret[4..nlen+4].clone_from_slice(&n[..nlen]);
 
             let len = if bytes.len() < CORE_SIZE - NAME_SIZE - 4 {
                 bytes.len()
@@ -267,7 +259,7 @@ impl From<PacketCore> for BackupCommand {
         };
 
         let core_name = core_2_string(&item[4..NAME_SIZE]);
-        let name = if core_name.len() > 0 {
+        let name = if !core_name.is_empty() {
             Some(core_name)
         } else {
             None
