@@ -267,10 +267,7 @@ impl From<PacketCore> for BackupCommand {
 
         let sl2ar = |sl: &[u8]| {
             let mut ret = [0u8; 4];
-
-            for i in 0..4 {
-                ret[i] = sl[i];
-            }
+            ret[..4].clone_from_slice(&sl[..4]);
 
             ret
         };
@@ -318,14 +315,9 @@ impl From<BackupCommand> for PacketCore {
             } else {
                 NAME_SIZE
             };
-
-            for i in 0..4 {
-                ret[i] = bytes[i];
-            }
-
-            for i in 0..nlen {
-                ret[i + 4] = n[i];
-            }
+            
+            ret[..4].clone_from_slice(&bytes[..4]);
+            ret[4..nlen+4].clone_from_slice(&bytes[..nlen]);
 
             ret
         };
@@ -385,7 +377,7 @@ impl From<BackupCommand> for PacketCore {
                     ret[i + start2] = pbytes[i];
                 }
 
-                return ret;
+                ret
             }
             BackupCommand::PingHost(n) => write_header("PIHO", n),
             BackupCommand::Print(n) => write_header("PRNT", n),
