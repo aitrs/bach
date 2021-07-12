@@ -37,7 +37,7 @@ impl<T: Copy> InnerQueue<T> {
             match q {
                 InnerQueue::Node(ref item, ref mut next) => {
                     if selector(item) {
-                        Some(item.clone())
+                        Some(*item)
                     } else {
                         find_r(next, selector)
                     }
@@ -53,19 +53,28 @@ impl<T: Copy> InnerQueue<T> {
         InnerQueue::Node(i, Box::new(ext))
     }
 
-    pub fn pop(&mut self) -> Option<T> {
-        match *self {
-            InnerQueue::Node(ref it, ref mut next) => {
-                if next.is_null() {
-                    let copy = it.clone();
-                    drop(it);
-                    *self = InnerQueue::Null;
-                    return Some(copy);
-                } else {
-                    next.pop()
-                }
-            }
+    pub fn node_get(&self) -> Option<T> {
+        match self {
+            InnerQueue::Node(ref it, _) => Some(*it),
             InnerQueue::Null => None,
+        }
+    }
+
+    pub fn is_node(&self) -> bool {
+        matches!(self, InnerQueue::Node(_,_))
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        if self.is_node() {
+            let n = std::mem::replace(self, InnerQueue::Null);
+            if let Some(val) = n.node_get() {
+                drop(n);
+                Some(val)
+            } else {
+                None
+            }
+        } else {
+            None
         }
     }
 
@@ -73,7 +82,7 @@ impl<T: Copy> InnerQueue<T> {
         match *self {
             InnerQueue::Node(ref it, ref next) => {
                 if next.is_null() {
-                    return Some(it.clone());
+                    Some(*it)
                 } else {
                     next.watch()
                 }

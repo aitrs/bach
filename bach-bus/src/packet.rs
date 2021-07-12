@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::fmt::Display;
 
 pub const CORE_SIZE: usize = 1024;
 pub const NAME_SIZE: usize = 100;
@@ -434,12 +435,12 @@ pub struct Notification {
     pub good: bool,
 }
 
-impl Notification {
-    pub fn to_string(&self) -> String {
+impl Display for Notification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.good {
-            format!("{}:{} at stage {}", self.provider, self.message, self.stage)
+            f.write_fmt(format_args!("{}:{} at stage {}", self.provider, self.message, self.stage))
         } else {
-            "Wrong Notification Format".to_string()
+            f.write_fmt(format_args!("{}", "Wrong notification format"))
         }
     }
 }
@@ -581,13 +582,8 @@ impl Packet {
             bytes.len()
         };
         let mut core = [0u8; CORE_SIZE];
-        for i in 0..headlen {
-            core[i] = header[i];
-        }
-
-        for i in 0..blen {
-            core[i + headlen] = bytes[i];
-        }
+        core[..headlen].clone_from_slice(&header[..headlen]);
+        core[headlen..blen+headlen].copy_from_slice(&bytes[..blen]);
 
         Packet::Alive(core)
     }

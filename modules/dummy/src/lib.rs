@@ -27,12 +27,9 @@ impl Module for Dummy {
     fn accept(&self, p: Packet) -> bool {
         match p {
             Packet::BackupCom(core) => match BackupCommand::from(core) {
-                BackupCommand::Fire(e) => match e {
-                    Some(s) => {
+                BackupCommand::Fire(Some(s)) => {
                         println!("Dummy received fire message : {}", s);
                         s.eq(&self.name())
-                    }
-                    None => false,
                 },
                 _ => false,
             },

@@ -127,8 +127,7 @@ impl ModuleManager {
     }
 
     pub fn spawn_all(&self) -> ModResult<()> {
-        let mut dex = 0;
-        for m in &self.modules {
+        for (dex, m) in self.modules.iter().enumerate() {
             m.module.init()?;
             let spwn = ModSpwned {
                 handle: m.module.spawn(),
@@ -139,7 +138,6 @@ impl ModuleManager {
                 whence: m.whence.clone(),
             };
             self.spwned.borrow_mut().push(spwn);
-            dex += 1;
         }
         Ok(())
     }
@@ -180,7 +178,7 @@ impl ModuleManager {
         let mut res: Vec<(String, ModResult<()>)> = Vec::new();
         let mut spwned = self.spwned.replace(Vec::new());
 
-        while spwned.len() > 0 {
+        while !spwned.is_empty() {
             let item = spwned.pop();
             match item {
                 Some(i) => match i.handle.join() {
@@ -199,7 +197,7 @@ impl ModuleManager {
                         }
                     }
                     Err(_) => {
-                        res.push((i.name, Err(ModError::new(&format!("Panicked !!!")))));
+                        res.push((i.name, Err(ModError::new("Panicked !!!"))));
                     }
                 },
                 None => {
@@ -212,8 +210,7 @@ impl ModuleManager {
     }
 
     pub fn spawn(&self, mod_name: &str) -> ModSpawnState {
-        let mut dex = 0;
-        for m in &self.modules {
+        for (dex, m) in self.modules.iter().enumerate() {
             if m.module.name().eq(mod_name) {
                 match m.module.init() {
                     Ok(()) => (),
@@ -224,7 +221,7 @@ impl ModuleManager {
                 let spwn = ModSpwned {
                     handle: m.module.spawn(),
                     modules_index: dex,
-                    name: m.module.name().to_string(),
+                    name: m.module.name(),
                     last_time_seen_alive: LastTimeSeenAlive(RefCell::new(Instant::now())),
                     last_cycle: RefCell::new(Instant::now()),
                     whence: m.whence.clone(),
@@ -232,7 +229,6 @@ impl ModuleManager {
                 self.spwned.borrow_mut().push(spwn);
                 return ModSpawnState::Spawned;
             }
-            dex += 1;
         }
         ModSpawnState::NotFound
     }
@@ -298,24 +294,21 @@ pub fn connect(
 ) -> ModResult<()> {
     bus.lock()?.connect(BusConnection::new(
         move |packet| match shared_self.try_lock() {
-            Ok(sup) => match packet {
-                Packet::Alive(n) => {
-                    let name = bach_bus::packet::core_2_string(&n[5..bach_bus::packet::CORE_SIZE]);
-                    for m in sup.spwned.borrow().iter() {
-                        if m.name.eq(&name) {
-                            m.last_time_seen_alive.update();
-                        } else if m
-                            .last_time_seen_alive
-                            .0
-                            .borrow()
-                            .elapsed()
-                            .gt(&sup.respawn_duration.borrow())
-                        {
-                            sup.respawn(&name);
-                        }
+            Ok(sup) => if let Packet::Alive(n) = packet {
+                let name = bach_bus::packet::core_2_string(&n[5..bach_bus::packet::CORE_SIZE]);
+                for m in sup.spwned.borrow().iter() {
+                    if m.name.eq(&name) {
+                        m.last_time_seen_alive.update();
+                    } else if m
+                        .last_time_seen_alive
+                        .0
+                        .borrow()
+                        .elapsed()
+                        .gt(&sup.respawn_duration.borrow())
+                    {
+                        sup.respawn(&name);
                     }
                 }
-                _ => (),
             },
             Err(e) => {
                 let bus = bus.lock().unwrap();
@@ -326,15 +319,12 @@ pub fn connect(
             }
         },
         move |packet| -> bool {
-            match packet {
-                Packet::Alive(_) => true,
-                _ => false,
-            }
+            matches!(packet, Packet::Alive(_))
         },
         move || -> Option<Packet> {
             match shared_self.try_lock() {
                 Ok(sup) => {
-                    return sup.output.replace(None);
+                    sup.output.replace(None)
                 }
                 Err(e) => {
                     let bus = bus.lock().unwrap();
@@ -342,7 +332,7 @@ pub fn connect(
                         "Unable to lock module manager : {}",
                         e.to_string()
                     ), "Module Manager", "Connect"));
-                    return None;
+                    None
                 }
             }
         },

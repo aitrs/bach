@@ -174,11 +174,7 @@ impl RsynConfigItem {
         match &self.host {
             Some(h) => match h.ping_test(5) {
                 Ok(count) => {
-                    if count > 2 {
-                        true
-                    } else {
-                        false
-                    }
+                    count > 2
                 }
                 Err(_) => false,
             },
@@ -243,7 +239,7 @@ impl RsynConfigItem {
                     return Ok(true);
                 }
                 if self.check_mounted()?  {
-                    return Ok(true);
+                    Ok(true)
                 } else {
                     let mut cmd = if self.host.is_some() {
                         Command::new("ssh")
@@ -357,11 +353,11 @@ impl RsynConfigItem {
                         .arg("ls")
                         .arg(&self.genpathstr(&self.ttype.to_enum(), self.day_by_day))
                         .spawn()?;
-                    return Ok(cmd.wait()?.success());
+                    Ok(cmd.wait()?.success())
                 }
                 None => {
                     let p = PathBuf::from(e);
-                    return Ok(p.exists());
+                    Ok(p.exists())
                 }
             },
             TargetType::Mount(e) => Ok(true),

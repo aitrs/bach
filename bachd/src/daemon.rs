@@ -113,7 +113,7 @@ pub struct DaemonConfig {
 impl DaemonConfig {
     pub fn load() -> DaemonResult<Self> {
         for v in std::env::vars() {
-            if v.0.eq("BACH_DEFAULT_CONFIG") && v.1.len() > 0 {
+            if v.0.eq("BACH_DEFAULT_CONFIG") && !v.1.is_empty() {
                 println!("Loading config file {}", &v.1);
                 let file = fs::File::open(Path::new(&v.1))?;
                 let ret: DaemonConfig = quick_xml::de::from_reader(BufReader::new(file))?;
@@ -190,7 +190,7 @@ pub fn spawn() -> DaemonResult<()> {
             let mut current_core = [0u8; CORE_SIZE];
             match tcpstream {
                 Ok(mut stream) => {
-                    stream.read(&mut current_core)?;
+                    stream.read_exact(&mut current_core)?;
                     match TcpCommand::from(current_core) {
                         TcpCommand::List(list) => {
                             process_tcp_command_list(list)?;

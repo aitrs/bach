@@ -120,14 +120,13 @@ impl Module for NoreplySelect {
     }
 
     fn accept(&self, p: Packet) -> bool {
-        match p {
-            Packet::NotifyGood(_) => true,
-            Packet::NotifyWarn(_) => true,
-            Packet::NotifyErr(_) => true,
-            Packet::NotifyCom(_) => true,
-            Packet::Terminate => true,
-            _ => false,
-        }
+        matches!(p,
+            Packet::NotifyGood(_) |
+            Packet::NotifyWarn(_) |
+            Packet::NotifyErr(_) |
+            Packet::NotifyCom(_) |
+            Packet::Terminate 
+        )
     }
 
     fn inlet(&self, p: Packet) {

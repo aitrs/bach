@@ -110,17 +110,13 @@ impl Host {
             let mut recv_it = icmp_packet_iter(&mut rx);
             while run {
                 match recv_it.next_with_timeout(std::time::Duration::from_millis(1000)) {
-                    Ok(ret) => match ret {
-                        Some(packet) => match EchoReplyPacket::new(packet.0.packet()) {
-                            Some(_reply) => {
-                                if packet.1.eq(&IpAddr::V4(self.ip)) {
-                                    ping_count = ping_count + 1;
-                                    run = false;
-                                }
+                    Ok(ret) => if let Some(packet) = ret {
+                        if let Some(_reply) = EchoReplyPacket::new(packet.0.packet()) {
+                            if packet.1.eq(&IpAddr::V4(self.ip)) {
+                                ping_count += 1;
+                                run = false;
                             }
-                            None => (),
-                        },
-                        None => (),
+                        }                    
                     },
                     Err(e) => return Err(Error::new(ErrorKind::Other, e)),
                 }
@@ -130,6 +126,6 @@ impl Host {
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
         }
-        return Ok(ping_count);
+        Ok(ping_count)
     }
 }

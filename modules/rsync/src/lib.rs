@@ -28,7 +28,7 @@ impl Rsync {
         Rsync {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
-            config_file: PathBuf::from(config_filename.unwrap_or("".to_string())),
+            config_file: PathBuf::from(config_filename.unwrap_or_else(|| "".to_string())),
             out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
@@ -43,15 +43,13 @@ fn perform_checks(
     let check_device = item.check_device();
     let check_host = item.check_host_ping();
     let lock_generr = move |format: String| -> bool {
-        match stack.lock() {
-            Ok(cell) => {
-                cell.borrow_mut()
-                    .push(Packet::new_ne(&format, &label, "Prelude checks"));
-            }
-            Err(_) => (),
+        if let Ok(cell) = stack.lock() {
+            cell.borrow_mut()
+                .push(Packet::new_ne(&format, &label, "Prelude checks"));
         }
         false
     };
+
 
     if check_target.is_err() {
         lock_generr(format!("Target {} not testable", item.get_desc()))
@@ -59,9 +57,9 @@ fn perform_checks(
         lock_generr(format!("Target device {} not testable", item.get_desc()))
     } else if !check_host {
         lock_generr(format!("Target {} host not reachable", item.get_desc()))
-    } else if !check_target.unwrap() {
+    } else if !check_target.unwrap_or(false) {
         lock_generr(format!("Target {} not reachable", item.get_desc()))
-    } else if !check_device.unwrap() {
+    } else if !check_device.unwrap_or(false) {
         lock_generr(format!("Target device {} not reachable", item.get_desc()))
     } else {
         true
@@ -74,37 +72,34 @@ fn process_rsync_exit_code(
     stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
     label: &str
 ) {
-    let lock_genwarn = move |format: &str| match stack.lock() {
-        Ok(cell) => {
+    let lock_genwarn = move |format: &str| {
+        if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_nw(
                 &format!("Target {} : {}", item.get_desc(), format),
                 &label,
                 "Exit",
             ));
         }
-        Err(_) => (),
     };
 
-    let lock_generr = move |format: &str| match stack.lock() {
-        Ok(cell) => {
+    let lock_generr = move |format: &str| {
+        if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_ne(
                 &format!("Target {} : {}", item.get_desc(), format),
                 &label,
                 "Exit",
             ));
         }
-        Err(_) => (),
     };
 
-    let lock_gengood = move |format: &str| match stack.lock() {
-        Ok(cell) => {
+    let lock_gengood = move |format: &str| {
+        if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_ne(
                 &format!("Target {} : {}", item.get_desc(), format),
                 &label,
                 "Exit",
             ));
         }
-        Err(_) => (),
     };
 
     if code.is_none() {
@@ -173,10 +168,7 @@ impl Module for Rsync {
     fn accept(&self, p: Packet) -> bool {
         match p {
             Packet::BackupCom(core) => match BackupCommand::from(core) {
-                BackupCommand::Fire(e) => match e {
-                    Some(s) => s.eq(&self.name()),
-                    None => false,
-                },
+                BackupCommand::Fire(Some(s)) => s.eq(&self.name()),
                 _ => false,
             },
             Packet::Terminate => true,
@@ -251,84 +243,74 @@ impl Module for Rsync {
                         let namecc = namec.lock()?.borrow().to_string();
                         if perform_checks(&item, &stackc, &namecc) {
                             let mount = item.mount_target();
-                            if mount.is_err() {
+                            if !mount.unwrap_or(false) {
                                 stackc.lock()?.borrow_mut().push(Packet::new_ne(&format!(
                                     "Unable to mount target {}",
                                     item.get_desc()
-                                ), &namecc, "Mount"));
+                                ), &namecc , "Mount"));
                             } else {
-                                if !mount.unwrap() {
-                                    stackc.lock()?.borrow_mut().push(Packet::new_ne(&format!(
-                                        "Unable to mount target {}",
+                                let mut cmd = item.to_cmd();
+                                let mut child = cmd.spawn()?;
+
+                                stackc.lock()?.borrow_mut().push(Packet::LoggerCom(
+                                    PacketCore::from(LoggerCommand::Write(format!(
+                                        "Command {:?} successfully launched on target {}",
+                                        &cmd,
                                         item.get_desc()
-                                    ), &namecc , "Mount"));
-                                } else {
-                                    let mut cmd = item.to_cmd();
-                                    let mut child = cmd.spawn()?;
+                                    ))),
+                                ));
 
-                                    stackc.lock()?.borrow_mut().push(Packet::LoggerCom(
-                                        PacketCore::from(LoggerCommand::Write(format!(
-                                            "Command {:?} successfully launched on target {}",
-                                            &cmd,
-                                            item.get_desc()
-                                        ))),
-                                    ));
+                                let start = Instant::now();
+                                let ctrlcc = ctrlc.clone();
+                                let mut run = true;
+                                let mut w = None;
+                                while ctrlcc.load(Ordering::SeqCst) == 3 && run {
+                                    w = child.try_wait()?;
+                                    if w.is_some() {
+                                        run = false;
+                                    }
 
-                                    let start = Instant::now();
-                                    let ctrlcc = ctrlc.clone();
-                                    let mut run = true;
-                                    let mut w = None;
-                                    while ctrlcc.load(Ordering::SeqCst) == 3 && run {
-                                        w = child.try_wait()?;
-                                        if w.is_some() {
+                                    if let Some(d) = item.timeout {
+                                        if start.elapsed().gt(&Duration::from_secs(d * 60))
+                                        {
                                             run = false;
-                                        }
-
-                                        match item.timeout {
-                                            Some(d) => {
-                                                if start.elapsed().gt(&Duration::from_secs(d * 60))
-                                                {
-                                                    run = false;
-                                                    ctrlcc.store(2, Ordering::SeqCst);
-                                                }
-                                            }
-                                            None => (),
+                                            ctrlcc.store(2, Ordering::SeqCst);
                                         }
                                     }
+                                }
 
-                                    if ctrlcc.load(Ordering::SeqCst) == 2 {
-                                        child.kill()?;
-                                        stackc.lock()?.borrow_mut().push(Packet::new_nw(&format!(
-                                            "Synchro for target {} killed before end",
-                                            item.get_desc()
-                                        ), &namecc, "End"));
-                                        w = Some(child.wait()?);
-                                    }
+                                if ctrlcc.load(Ordering::SeqCst) == 2 {
+                                    child.kill()?;
+                                    stackc.lock()?.borrow_mut().push(Packet::new_nw(&format!(
+                                        "Synchro for target {} killed before end",
+                                        item.get_desc()
+                                    ), &namecc, "End"));
+                                    w = Some(child.wait()?);
+                                }
 
-                                    process_rsync_exit_code(&item, w.unwrap().code(), &stackc, &namecc);
-                                    match item.umount_target() {
-                                        Ok(b) => {
-                                            if !b {
-                                                stackc.lock()?.borrow_mut().push(Packet::new_nw(
-                                                    &format!(
-                                                        "Target {} was not unmounted",
-                                                        item.get_desc(),
-                                                    ),
-                                                    &namecc,
-                                                    "Unmount",
-                                                ));
-                                            }
-                                        }
-                                        Err(_) => {
-                                            stackc.lock()?.borrow_mut().push(Packet::new_ne(
+                                process_rsync_exit_code(&item, w.unwrap().code(), &stackc, &namecc);
+                                match item.umount_target() {
+                                    Ok(b) => {
+                                        if !b {
+                                            stackc.lock()?.borrow_mut().push(Packet::new_nw(
                                                 &format!(
-                                                    "Target {} unmount crashed",
-                                                    item.get_desc()
+                                                    "Target {} was not unmounted",
+                                                    item.get_desc(),
                                                 ),
                                                 &namecc,
                                                 "Unmount",
                                             ));
                                         }
+                                    }
+                                    Err(_) => {
+                                        stackc.lock()?.borrow_mut().push(Packet::new_ne(
+                                            &format!(
+                                                "Target {} unmount crashed",
+                                                item.get_desc()
+                                            ),
+                                            &namecc,
+                                            "Unmount",
+                                        ));
                                     }
                                 }
                             }

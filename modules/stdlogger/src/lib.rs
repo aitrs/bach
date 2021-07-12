@@ -25,14 +25,13 @@ impl Module for StdLogger {
     }
 
     fn accept(&self, p: Packet) -> bool {
-        match p {
-            Packet::NotifyGood(_) => true,
-            Packet::NotifyWarn(_) => true,
-            Packet::NotifyErr(_) => true,
-            Packet::LoggerCom(_) => true,
-            Packet::Terminate => true,
-            _ => false,
-        }
+        matches!(p,
+            Packet::NotifyGood(_) |
+            Packet::NotifyWarn(_) |
+            Packet::NotifyErr(_) |
+            Packet::LoggerCom(_) |
+            Packet::Terminate 
+        )
     }
 
     fn inlet(&self, p: Packet) {
@@ -47,12 +46,8 @@ impl Module for StdLogger {
                 println!("{}", Red.paint(Notification::from(p).to_string()));
             }
             Packet::LoggerCom(e) => {
-                let command = LoggerCommand::from(e);
-                match command {
-                    LoggerCommand::Write(s) => {
-                        println!("{}", s);
-                    }
-                    _ => (),
+                if let LoggerCommand::Write(s) = LoggerCommand::from(e) {
+                    println!("{}", s);
                 }
             }
             Packet::Terminate => {
