@@ -10,6 +10,8 @@ pub fn main() {
                 path: "/mnt/backup".to_string(),
                 oloop: false,
                 offset: None,
+                check_only: None,
+                unmount: true,
             }),
         },
         source: Source("/var/log".to_string()),
@@ -26,6 +28,7 @@ pub fn main() {
         stamp_name: None,
         author: None,
         timeout: Some(360),
+        delete: false,
     };
     let cmd = confitem.to_cmd();
     println!("{:?}", cmd);
