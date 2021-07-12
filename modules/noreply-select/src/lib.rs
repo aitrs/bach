@@ -52,14 +52,13 @@ impl NoreplySelect {
                     }
                 };
 
-                let conf = match quick_xml::de::from_reader(BufReader::new(f)) {
+                match quick_xml::de::from_reader(BufReader::new(f)) {
                     Ok(c) => c,
                     Err(e) => {
                         println!("NoreplySelect: {:?}, fallback to default", e);
-                        return gendef();
+                        gendef()
                     }
-                };
-                conf
+                }
             }
             None => gendef(),
         }
@@ -97,16 +96,14 @@ pub fn mailbose(
             .spawn()?;
         let res = norep.wait()?;
         let code = res.code().unwrap_or(-1);
-        let ret = if res.success() {
+        if res.success() {
             Ok(())
         } else {
             Err(ModError::new(&format!(
                 "noreply_select exited with error status {}",
                 code
             )))
-        };
-            
-        ret
+        }
     })
 }
 
