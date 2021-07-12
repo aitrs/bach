@@ -64,17 +64,27 @@ impl<T: Copy> InnerQueue<T> {
         matches!(self, InnerQueue::Node(_,_))
     }
 
-    pub fn pop(&mut self) -> Option<T> {
+    fn get_out(&mut self) -> Option<T> {
         if self.is_node() {
             let n = std::mem::replace(self, InnerQueue::Null);
-            if let Some(val) = n.node_get() {
-                drop(n);
-                Some(val)
-            } else {
-                None
-            }
+            let copy = n.node_get();
+            drop(n);
+            copy
         } else {
             None
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        match self {
+            InnerQueue::Node(_, ref mut next) => {
+                if next.is_null() {
+                    self.get_out()
+                } else {
+                    next.pop()
+                }
+            },
+            InnerQueue::Null => None,
         }
     }
 
@@ -197,6 +207,7 @@ mod tests {
         let q: Queue<u32> = Queue::new();
         q.push(5);
         assert!(!q.empty());
+        assert_eq!(q.consume().unwrap(), 5);
     }
 
     #[test]
@@ -207,6 +218,7 @@ mod tests {
         }
         for i in 0..4 {
             let n = q.consume();
+            println!("{} : {}", i, n.unwrap());
             assert_eq!(n.unwrap(), i);
         }
         let nbis = q.consume();

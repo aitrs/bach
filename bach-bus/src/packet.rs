@@ -318,7 +318,7 @@ impl From<BackupCommand> for PacketCore {
             };
             
             ret[..4].clone_from_slice(&bytes[..4]);
-            ret[4..nlen+4].clone_from_slice(&bytes[..nlen]);
+            ret[4..nlen+4].clone_from_slice(&n[..nlen]);
 
             ret
         };
