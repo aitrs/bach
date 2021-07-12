@@ -9,7 +9,10 @@ use std::sync::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
+extern crate bach_module_tests;
+use bach_module_tests::*;
 
+#[derive(BachModuleStdTests)]
 pub struct StdLogger {
     ctrl: Arc<AtomicU8>,
     out_alive: Arc<AtomicBool>,

@@ -10,6 +10,7 @@ edition = "2018"
 bach-module = { path = "../../bach-module" }
 bach-bus = { path = "../../bach-bus" }
 ansi_term = "0.12.1"
+bach-module-tests = { path = "../../bach-module-tests" }
 
 [lib]
 crate-type = ["dylib", "lib"]

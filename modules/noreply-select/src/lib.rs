@@ -10,8 +10,10 @@ use std::sync::{
     Arc,
 };
 use std::thread;
+extern crate bach_module_tests;
+use bach_module_tests::*;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, BachModuleStdTests)]
 #[serde(rename_all = "kebab-case")]
 pub struct NoreplySelect {
     pub mail_template_file: String,

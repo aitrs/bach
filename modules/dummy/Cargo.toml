@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 bach-module = { path = "../../bach-module" }
 bach-bus = { path = "../../bach-bus" }
+bach-module-tests = { path = "../../bach-module-tests" }
 
 [lib]
 crate-type = ["dylib", "lib"]

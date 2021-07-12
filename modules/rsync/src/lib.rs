@@ -10,12 +10,15 @@ use std::sync::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
+extern crate bach_module_tests;
+use bach_module_tests::*;
 
 pub mod host;
 pub mod rsynconfig;
 
 use rsynconfig::*;
 
+#[derive(BachModuleStdTests)]
 pub struct Rsync {
     ctrl: Arc<AtomicU8>,
     out_alive: Arc<AtomicBool>,
@@ -215,6 +218,7 @@ impl Module for Rsync {
 
     fn spawn(&self) -> thread::JoinHandle<ModResult<()>> {
         let ctrlc = self.ctrl.clone();
+        let ctrlcc = self.ctrl.clone();
         let alivc = self.out_alive.clone();
         let stackc = self.out_stack.clone();
         let confc = Arc::new(Mutex::new(PathBuf::from(&self.config_file)));
@@ -222,17 +226,21 @@ impl Module for Rsync {
 
         thread::spawn(move || -> ModResult<()> {
             let confcc = confc.clone();
-            let run = Arc::new(AtomicBool::new(true));
-            let runc = run.clone();
             let alivcc = alivc.clone();
+            let mut run = false;
             let aliveth = thread::spawn(move || {
-                while runc.load(Ordering::SeqCst) {
+                let mut run = true;
+                while run {
+                    let c = ctrlcc.load(Ordering::SeqCst);
+                    if c == 2 {
+                        run = false;
+                    }
                     alivcc.store(true, Ordering::SeqCst);
                     thread::sleep(Duration::from_secs(2));
                 }
             });
             let namec = name.clone();
-            while run.load(Ordering::SeqCst) {
+            while run {
                 let c = ctrlc.load(Ordering::SeqCst);
                 if c == 1 {
                     ctrlc.store(3, Ordering::SeqCst);
@@ -314,10 +322,14 @@ impl Module for Rsync {
                                     }
                                 }
                             }
-                        } else if c == 2 {
-                            run.store(false, Ordering::SeqCst);
+                        } 
+
+                        if c == 2 {
+                            run = false;
                         }
                     }
+                } else if c == 2 {
+                    run = false;
                 }
             }
             aliveth.join().unwrap();

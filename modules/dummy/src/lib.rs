@@ -8,7 +8,10 @@ use std::sync::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
+extern crate bach_module_tests;
+use bach_module_tests::*;
 
+#[derive(BachModuleStdTests)]
 pub struct Dummy {
     ctrl: Arc<AtomicU8>,
     out_alive: Arc<AtomicBool>,
@@ -70,11 +73,12 @@ impl Module for Dummy {
         let alivc = self.out_alive.clone();
         thread::spawn(move || -> ModResult<()> {
             let mut start = Instant::now();
+            let mut run = true;
             println!("Dummy Spawned");
-            loop {
+            while run {
                 let c = ctrlc.load(Ordering::SeqCst);
                 if c == 2 {
-                    break;
+                    run = false;
                 } else if c == 1 {
                     let mut f = OpenOptions::new()
                         .write(true)

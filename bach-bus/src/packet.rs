@@ -621,7 +621,6 @@ pub fn parse_alive(packet: Packet) -> PacketResult<String> {
 #[cfg(test)]
 mod tests {
     use crate::packet::*;
-
     #[test]
     fn packet_core_to_nofify_command() {
         let mut core1 = [0u8; CORE_SIZE];
