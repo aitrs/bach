@@ -53,7 +53,6 @@ fn perform_checks(
         false
     };
 
-
     if check_target.is_err() {
         lock_generr(format!("Target {} not testable", item.get_desc()))
     } else if check_device.is_err() {
@@ -73,7 +72,7 @@ fn process_rsync_exit_code(
     item: &RsynConfigItem,
     code: Option<i32>,
     stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
-    label: &str
+    label: &str,
 ) {
     let lock_genwarn = move |format: &str| {
         if let Ok(cell) = stack.lock() {
@@ -136,6 +135,65 @@ fn process_rsync_exit_code(
     }
 }
 
+fn do_mount(
+    item: &RsynConfigItem,
+    stackc: &Arc<Mutex<RefCell<Vec<Packet>>>>,
+    namecc: &str,
+) -> ModResult<bool> {
+    let mount = item.mount_target();
+    if !mount.unwrap_or(false) {
+        stackc.lock()?.borrow_mut().push(Packet::new_ne(
+            &format!("Unable to mount target {}", item.get_desc()),
+            namecc,
+            "Mount",
+        ));
+        Ok(false)
+    } else {
+        Ok(true)
+    }
+}
+
+fn do_umount(
+    item: &RsynConfigItem,
+    stackc: &Arc<Mutex<RefCell<Vec<Packet>>>>,
+    namecc: String,
+) -> ModResult<()> {
+    match item.umount_target() {
+        Ok(b) => {
+            if !b {
+                stackc.lock()?.borrow_mut().push(Packet::new_nw(
+                    &format!("Target {} was not unmounted", item.get_desc(),),
+                    &namecc,
+                    "Unmount",
+                ));
+            }
+        }
+        Err(_) => {
+            stackc.lock()?.borrow_mut().push(Packet::new_ne(
+                &format!("Target {} unmount crashed", item.get_desc()),
+                &namecc,
+                "Unmount",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn spawn_alive_thread(ctrlcc: Arc<AtomicU8>, alivcc: Arc<AtomicBool>) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut run = true;
+        while run {
+            let c = ctrlcc.load(Ordering::SeqCst);
+            if c == 2 {
+                run = false;
+            }
+            alivcc.store(true, Ordering::SeqCst);
+            thread::sleep(Duration::from_secs(2));
+        }
+    })
+}
+
 impl Module for Rsync {
     fn name(&self) -> String {
         let conf: RsynConfig =
@@ -163,7 +221,11 @@ impl Module for Rsync {
             .push(if self.name().contains("error") {
                 Packet::new_ne("ERROR", &self.name(), "Init")
             } else {
-                Packet::new_ng(&format!("{} rsync module initialized", self.name()), &self.name(), "Init")
+                Packet::new_ng(
+                    &format!("{} rsync module initialized", self.name()),
+                    &self.name(),
+                    "Init",
+                )
             });
         Ok(())
     }
@@ -218,111 +280,74 @@ impl Module for Rsync {
 
     fn spawn(&self) -> thread::JoinHandle<ModResult<()>> {
         let ctrlc = self.ctrl.clone();
-        let ctrlcc = self.ctrl.clone();
         let alivc = self.out_alive.clone();
         let stackc = self.out_stack.clone();
         let confc = Arc::new(Mutex::new(PathBuf::from(&self.config_file)));
         let name = Arc::new(Mutex::new(RefCell::new(self.name())));
 
         thread::spawn(move || -> ModResult<()> {
-            let confcc = confc.clone();
-            let alivcc = alivc.clone();
             let mut run = false;
-            let aliveth = thread::spawn(move || {
-                let mut run = true;
-                while run {
-                    let c = ctrlcc.load(Ordering::SeqCst);
-                    if c == 2 {
-                        run = false;
-                    }
-                    alivcc.store(true, Ordering::SeqCst);
-                    thread::sleep(Duration::from_secs(2));
-                }
-            });
-            let namec = name.clone();
+            let aliveth = spawn_alive_thread(ctrlc.clone(), alivc.clone());
             while run {
                 let c = ctrlc.load(Ordering::SeqCst);
                 if c == 1 {
                     ctrlc.store(3, Ordering::SeqCst);
                     let config: RsynConfig = quick_xml::de::from_reader(BufReader::new(
-                        File::open(confcc.lock()?.as_path())?,
+                        File::open(confc.lock()?.as_path())?,
                     ))?;
                     for item in config.synchros {
-                        let namecc = namec.lock()?.borrow().to_string();
-                        if perform_checks(&item, &stackc, &namecc) {
-                            let mount = item.mount_target();
-                            if !mount.unwrap_or(false) {
-                                stackc.lock()?.borrow_mut().push(Packet::new_ne(&format!(
-                                    "Unable to mount target {}",
-                                    item.get_desc()
-                                ), &namecc , "Mount"));
-                            } else {
-                                let mut cmd = item.to_cmd();
-                                let mut child = cmd.spawn()?;
+                        let namecc = name.lock()?.borrow().to_string();
 
-                                stackc.lock()?.borrow_mut().push(Packet::LoggerCom(
-                                    PacketCore::from(LoggerCommand::Write(format!(
+                        if perform_checks(&item, &stackc, &namecc)
+                            && do_mount(&item, &stackc, &namecc)?
+                        {
+                            let mut cmd = item.to_cmd();
+                            let mut child = cmd.spawn()?;
+
+                            stackc
+                                .lock()?
+                                .borrow_mut()
+                                .push(Packet::LoggerCom(PacketCore::from(LoggerCommand::Write(
+                                    format!(
                                         "Command {:?} successfully launched on target {}",
                                         &cmd,
                                         item.get_desc()
-                                    ))),
-                                ));
+                                    ),
+                                ))));
 
-                                let start = Instant::now();
-                                let ctrlcc = ctrlc.clone();
-                                let mut run = true;
-                                let mut w = None;
-                                while ctrlcc.load(Ordering::SeqCst) == 3 && run {
-                                    w = child.try_wait()?;
-                                    if w.is_some() {
+                            let start = Instant::now();
+                            let mut run = true;
+                            let mut w = None;
+                            while ctrlc.load(Ordering::SeqCst) == 3 && run {
+                                w = child.try_wait()?;
+                                if w.is_some() {
+                                    run = false;
+                                }
+
+                                if let Some(d) = item.timeout {
+                                    if start.elapsed().gt(&Duration::from_secs(d * 60)) {
                                         run = false;
-                                    }
-
-                                    if let Some(d) = item.timeout {
-                                        if start.elapsed().gt(&Duration::from_secs(d * 60))
-                                        {
-                                            run = false;
-                                            ctrlcc.store(2, Ordering::SeqCst);
-                                        }
-                                    }
-                                }
-
-                                if ctrlcc.load(Ordering::SeqCst) == 2 {
-                                    child.kill()?;
-                                    stackc.lock()?.borrow_mut().push(Packet::new_nw(&format!(
-                                        "Synchro for target {} killed before end",
-                                        item.get_desc()
-                                    ), &namecc, "End"));
-                                    w = Some(child.wait()?);
-                                }
-
-                                process_rsync_exit_code(&item, w.unwrap().code(), &stackc, &namecc);
-                                match item.umount_target() {
-                                    Ok(b) => {
-                                        if !b {
-                                            stackc.lock()?.borrow_mut().push(Packet::new_nw(
-                                                &format!(
-                                                    "Target {} was not unmounted",
-                                                    item.get_desc(),
-                                                ),
-                                                &namecc,
-                                                "Unmount",
-                                            ));
-                                        }
-                                    }
-                                    Err(_) => {
-                                        stackc.lock()?.borrow_mut().push(Packet::new_ne(
-                                            &format!(
-                                                "Target {} unmount crashed",
-                                                item.get_desc()
-                                            ),
-                                            &namecc,
-                                            "Unmount",
-                                        ));
+                                        ctrlc.store(2, Ordering::SeqCst);
                                     }
                                 }
                             }
-                        } 
+
+                            if ctrlc.load(Ordering::SeqCst) == 2 {
+                                child.kill()?;
+                                stackc.lock()?.borrow_mut().push(Packet::new_nw(
+                                    &format!(
+                                        "Synchro for target {} killed before end",
+                                        item.get_desc()
+                                    ),
+                                    &namecc,
+                                    "End",
+                                ));
+                                w = Some(child.wait()?);
+                            }
+
+                            process_rsync_exit_code(&item, w.unwrap().code(), &stackc, &namecc);
+                            do_umount(&item, &stackc, namecc)?;
+                        }
 
                         if c == 2 {
                             run = false;

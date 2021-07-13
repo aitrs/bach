@@ -28,12 +28,13 @@ impl Module for StdLogger {
     }
 
     fn accept(&self, p: Packet) -> bool {
-        matches!(p,
-            Packet::NotifyGood(_) |
-            Packet::NotifyWarn(_) |
-            Packet::NotifyErr(_) |
-            Packet::LoggerCom(_) |
-            Packet::Terminate 
+        matches!(
+            p,
+            Packet::NotifyGood(_)
+                | Packet::NotifyWarn(_)
+                | Packet::NotifyErr(_)
+                | Packet::LoggerCom(_)
+                | Packet::Terminate
         )
     }
 

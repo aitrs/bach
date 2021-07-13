@@ -63,7 +63,6 @@ impl NoreplySelect {
             None => gendef(),
         }
     }
-
 }
 
 pub fn mailbose(
@@ -79,7 +78,8 @@ pub fn mailbose(
         let mut mailfile = File::open("/etc/bach/mail.html")?;
         let mut mail_contents = String::new();
         mailfile.read_to_string(&mut mail_contents)?;
-        mail_contents = mail_contents.replace("MESSAGE", &message)
+        mail_contents = mail_contents
+            .replace("MESSAGE", &message)
             .replace("DATE", &dt)
             .replace("HOST", &hostname);
         let mut norep = Command::new("noreply_select")
@@ -119,12 +119,13 @@ impl Module for NoreplySelect {
     }
 
     fn accept(&self, p: Packet) -> bool {
-        matches!(p,
-            Packet::NotifyGood(_) |
-            Packet::NotifyWarn(_) |
-            Packet::NotifyErr(_) |
-            Packet::NotifyCom(_) |
-            Packet::Terminate 
+        matches!(
+            p,
+            Packet::NotifyGood(_)
+                | Packet::NotifyWarn(_)
+                | Packet::NotifyErr(_)
+                | Packet::NotifyCom(_)
+                | Packet::Terminate
         )
     }
 

@@ -245,24 +245,26 @@ impl ModuleManager {
         match torespawn.handle.join() {
             Ok(res) => match res {
                 Ok(()) => {
-                    self.output.replace(Some(Packet::new_nw(&format!(
-                        "Module {} stopped",
-                        mod_name
-                    ), "Module Manager", "Respawn")));
+                    self.output.replace(Some(Packet::new_nw(
+                        &format!("Module {} stopped", mod_name),
+                        "Module Manager",
+                        "Respawn",
+                    )));
                 }
                 Err(e) => {
-                    self.output.replace(Some(Packet::new_ne(&format!(
-                        "Module {} exited with error {}",
-                        mod_name,
-                        e.to_string()
-                    ), "Module Manager", "Respawn")));
+                    self.output.replace(Some(Packet::new_ne(
+                        &format!("Module {} exited with error {}", mod_name, e.to_string()),
+                        "Module Manager",
+                        "Respawn",
+                    )));
                 }
             },
             Err(_) => {
-                self.output.replace(Some(Packet::new_ne(&format!(
-                    "Module {} panicked",
-                    mod_name
-                ), "Module Manager", "Respawn")));
+                self.output.replace(Some(Packet::new_ne(
+                    &format!("Module {} panicked", mod_name),
+                    "Module Manager",
+                    "Respawn",
+                )));
             }
         }
         self.spawn(&mod_name)
@@ -294,44 +296,44 @@ pub fn connect(
 ) -> ModResult<()> {
     bus.lock()?.connect(BusConnection::new(
         move |packet| match shared_self.try_lock() {
-            Ok(sup) => if let Packet::Alive(n) = packet {
-                let name = bach_bus::packet::core_2_string(&n[5..bach_bus::packet::CORE_SIZE]);
-                for m in sup.spwned.borrow().iter() {
-                    if m.name.eq(&name) {
-                        m.last_time_seen_alive.update();
-                    } else if m
-                        .last_time_seen_alive
-                        .0
-                        .borrow()
-                        .elapsed()
-                        .gt(&sup.respawn_duration.borrow())
-                    {
-                        sup.respawn(&name);
+            Ok(sup) => {
+                if let Packet::Alive(n) = packet {
+                    let name = bach_bus::packet::core_2_string(&n[5..bach_bus::packet::CORE_SIZE]);
+                    for m in sup.spwned.borrow().iter() {
+                        if m.name.eq(&name) {
+                            m.last_time_seen_alive.update();
+                        } else if m
+                            .last_time_seen_alive
+                            .0
+                            .borrow()
+                            .elapsed()
+                            .gt(&sup.respawn_duration.borrow())
+                        {
+                            sup.respawn(&name);
+                        }
                     }
                 }
-            },
+            }
             Err(e) => {
                 let bus = bus.lock().unwrap();
-                bus.send(Packet::new_ne(&format!(
-                    "Unable to lock module manager : {}",
-                    e.to_string()
-                ), "Module Manager", "Connect"));
+                bus.send(Packet::new_ne(
+                    &format!("Unable to lock module manager : {}", e.to_string()),
+                    "Module Manager",
+                    "Connect",
+                ));
             }
         },
-        move |packet| -> bool {
-            matches!(packet, Packet::Alive(_))
-        },
+        move |packet| -> bool { matches!(packet, Packet::Alive(_)) },
         move || -> Option<Packet> {
             match shared_self.try_lock() {
-                Ok(sup) => {
-                    sup.output.replace(None)
-                }
+                Ok(sup) => sup.output.replace(None),
                 Err(e) => {
                     let bus = bus.lock().unwrap();
-                    bus.send(Packet::new_ne(&format!(
-                        "Unable to lock module manager : {}",
-                        e.to_string()
-                    ), "Module Manager", "Connect"));
+                    bus.send(Packet::new_ne(
+                        &format!("Unable to lock module manager : {}", e.to_string()),
+                        "Module Manager",
+                        "Connect",
+                    ));
                     None
                 }
             }

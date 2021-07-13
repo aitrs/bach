@@ -61,7 +61,7 @@ impl<T: Copy> InnerQueue<T> {
     }
 
     pub fn is_node(&self) -> bool {
-        matches!(self, InnerQueue::Node(_,_))
+        matches!(self, InnerQueue::Node(_, _))
     }
 
     fn get_out(&mut self) -> Option<T> {
@@ -83,7 +83,7 @@ impl<T: Copy> InnerQueue<T> {
                 } else {
                     next.pop()
                 }
-            },
+            }
             InnerQueue::Null => None,
         }
     }

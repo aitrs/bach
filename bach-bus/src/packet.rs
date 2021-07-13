@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::fmt::Display;
+use std::path::PathBuf;
 
 pub const CORE_SIZE: usize = 1024;
 pub const NAME_SIZE: usize = 100;
@@ -149,7 +149,7 @@ impl From<NotifyCommand> for PacketCore {
             } else {
                 NAME_SIZE
             };
-            ret[4..len+4].clone_from_slice(&n[..len]);
+            ret[4..len + 4].clone_from_slice(&n[..len]);
 
             ret
         };
@@ -213,7 +213,7 @@ impl From<WatchCommand> for PacketCore {
             } else {
                 NAME_SIZE
             };
-            ret[4..nlen+4].clone_from_slice(&n[..nlen]);
+            ret[4..nlen + 4].clone_from_slice(&n[..nlen]);
 
             let len = if bytes.len() < CORE_SIZE - NAME_SIZE - 4 {
                 bytes.len()
@@ -316,9 +316,9 @@ impl From<BackupCommand> for PacketCore {
             } else {
                 NAME_SIZE
             };
-            
+
             ret[..4].clone_from_slice(&bytes[..4]);
-            ret[4..nlen+4].clone_from_slice(&n[..nlen]);
+            ret[4..nlen + 4].clone_from_slice(&n[..nlen]);
 
             ret
         };
@@ -370,8 +370,8 @@ impl From<BackupCommand> for PacketCore {
                     maxlen
                 };
                 let mut ret = write_header("CHHC", n);
-                ret[start1..ulen+start1].clone_from_slice(&ubytes[..ulen]);
-                ret[start2..plen+start2].clone_from_slice(&pbytes[..plen]);
+                ret[start1..ulen + start1].clone_from_slice(&ubytes[..ulen]);
+                ret[start2..plen + start2].clone_from_slice(&pbytes[..plen]);
 
                 ret
             }
@@ -410,13 +410,13 @@ impl From<LoggerCommand> for PacketCore {
                 let b = s.as_bytes();
                 let h = b"WRIT";
                 ret[..4].clone_from_slice(&h[..4]);
-                
+
                 let len = if b.len() < CORE_SIZE - 4 {
                     b.len()
                 } else {
                     CORE_SIZE - 4
                 };
-                ret[4..len+4].clone_from_slice(&b[..len]);
+                ret[4..len + 4].clone_from_slice(&b[..len]);
             }
             _ => {
                 let h = b"WRIT";
@@ -438,7 +438,10 @@ pub struct Notification {
 impl Display for Notification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.good {
-            f.write_fmt(format_args!("{}:{} at stage {}", self.provider, self.message, self.stage))
+            f.write_fmt(format_args!(
+                "{}:{} at stage {}",
+                self.provider, self.message, self.stage
+            ))
         } else {
             f.write_fmt(format_args!("{}", "Wrong notification format"))
         }
@@ -583,7 +586,7 @@ impl Packet {
         };
         let mut core = [0u8; CORE_SIZE];
         core[..headlen].clone_from_slice(&header[..headlen]);
-        core[headlen..blen+headlen].copy_from_slice(&bytes[..blen]);
+        core[headlen..blen + headlen].copy_from_slice(&bytes[..blen]);
 
         Packet::Alive(core)
     }

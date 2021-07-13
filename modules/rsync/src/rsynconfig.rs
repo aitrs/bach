@@ -1,10 +1,10 @@
 use crate::host::Host;
 use chrono::{prelude::*, Local, Weekday};
 use serde::{Deserialize, Serialize};
+use std::io::prelude::*;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::io::prelude::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Label(pub String);
@@ -138,7 +138,7 @@ impl RsynConfigItem {
                 ret.args(&["-a"]);
             }
         }
-        
+
         if self.delete {
             ret.arg("--delete-after").arg("--force");
         }
@@ -173,9 +173,7 @@ impl RsynConfigItem {
     pub fn check_host_ping(&self) -> bool {
         match &self.host {
             Some(h) => match h.ping_test(5) {
-                Ok(count) => {
-                    count > 2
-                }
+                Ok(count) => count > 2,
                 Err(_) => false,
             },
             None => true,
@@ -191,12 +189,12 @@ impl RsynConfigItem {
                 } else {
                     Command::new("df")
                 };
-                
+
                 match &self.host {
                     Some(h) => {
                         cmd.args(&[
                             &format!(
-                                "{}@{}", 
+                                "{}@{}",
                                 h.user(),
                                 if self.use_host_name {
                                     h.name()
@@ -205,17 +203,15 @@ impl RsynConfigItem {
                                 }
                             ),
                             "df",
-                            "-h"
+                            "-h",
                         ]);
-                    },
+                    }
                     None => {
                         cmd.arg("-h");
                     }
                 }
 
-                let child = cmd
-                    .stdout(Stdio::piped())
-                    .spawn()?;
+                let child = cmd.stdout(Stdio::piped()).spawn()?;
                 for line in std::io::BufReader::new(child.stdout.unwrap()).lines() {
                     if line?.contains(&e.device) {
                         return Ok(true);
@@ -234,11 +230,11 @@ impl RsynConfigItem {
                     Some(b) => !b,
                     None => true,
                 };
-                
+
                 if !run {
                     return Ok(true);
                 }
-                if self.check_mounted()?  {
+                if self.check_mounted()? {
                     Ok(true)
                 } else {
                     let mut cmd = if self.host.is_some() {

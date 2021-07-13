@@ -31,9 +31,9 @@ impl Module for Dummy {
         match p {
             Packet::BackupCom(core) => match BackupCommand::from(core) {
                 BackupCommand::Fire(Some(s)) => {
-                        println!("Dummy received fire message : {}", s);
-                        s.eq(&self.name())
-                },
+                    println!("Dummy received fire message : {}", s);
+                    s.eq(&self.name())
+                }
                 _ => false,
             },
             Packet::Terminate => true,

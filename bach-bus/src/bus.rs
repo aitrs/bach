@@ -27,7 +27,6 @@ impl<'z> BusConnection {
     }
 
     pub fn perform(&mut self, p: Option<Packet>) -> Option<Packet> {
-       
         if let Some(pp) = p {
             if (self.w)(pp) {
                 (self.p)(pp);
