@@ -6,27 +6,22 @@ pipeline {
 
   }
   stages {
-    stage('env') {
-      steps {
-        sh 'source /root/.cargo/env'
-      }
-    }
-
     stage('lint') {
       steps {
-        sh 'cargo clippy'
+        sh '''
+source /root/.cargo/env; cargo clippy'''
       }
     }
 
     stage('test') {
       steps {
-        sh 'cargo test'
+        sh 'source /root/.cargo/env; cargo test'
       }
     }
 
     stage('build') {
       steps {
-        sh 'cargo build --release'
+        sh 'source /root/.cargo/env; cargo build --release'
       }
     }
 
