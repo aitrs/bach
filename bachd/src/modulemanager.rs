@@ -323,7 +323,6 @@ pub fn connect(
                 ));
             }
         },
-        move |packet| -> bool { matches!(packet, Packet::Alive(_)) },
         move || -> Option<Packet> {
             match shared_self.try_lock() {
                 Ok(sup) => sup.output.replace(None),
@@ -346,10 +345,9 @@ pub fn connect(
     for i in 0..len {
         bus.lock()?.connect(BusConnection::new(
             move |packet| {
-                shared_self.lock().unwrap().modules[i].module.inlet(packet);
+                shared_self.lock().unwrap().modules[i].module.input(packet);
             },
-            move |packet| -> bool { shared_self.lock().unwrap().modules[i].module.accept(packet) },
-            move || -> Option<Packet> { shared_self.lock().unwrap().modules[i].module.outlet() },
+            move || -> Option<Packet> { shared_self.lock().unwrap().modules[i].module.output() },
         ));
     }
 

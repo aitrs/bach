@@ -15,20 +15,23 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
         &format!("bach_module_std_init_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
     );
-    let accept_test_ident = syn::Ident::new(
-        &format!("bach_module_std_accept_test_for_{}", st_name).to_lowercase(),
-        Span::call_site(),
-    );
-    let inlet_test_ident = syn::Ident::new(
-        &format!("bach_module_std_inlet_test_for_{}", st_name).to_lowercase(),
+
+    let input_test_ident = syn::Ident::new(
+        &format!("bach_module_std_input_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
     );
     let destroy_test_ident = syn::Ident::new(
         &format!("bach_module_std_destroy_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
     );
+    
     let outlet_test_ident = syn::Ident::new(
         &format!("bach_module_std_outlet_test_for_{}", st_name).to_lowercase(),
+        Span::call_site(),
+    );
+
+    let output_test_ident = syn::Ident::new(
+        &format!("bach_module_std_output_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
     );
     let spawn_test_ident = syn::Ident::new(
@@ -40,19 +43,32 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
         Span::call_site(),
     );
 
+    let fire_test_ident = syn::Ident::new(
+        &format!("bach_module_std_fire_test_for_{}", st_name).to_lowercase(),
+        Span::call_site(),
+    );
+
     let conf_examples_dir = format!("./modules/{}/", st_name).to_lowercase();
 
     let tests = quote! {
         #[cfg(test)]
         mod #stdtest_modname_ident {
             use crate::#st_name;
-            use bach_module::Module;
+            use bach_module::{Module, self};
             use bach_bus::packet::*;
             use std::io;
             use std::fs::{self, DirEntry};
-            use std::path::Path;
+            use std::path::{Path, PathBuf};
             use std::time::{Instant, Duration};
             use std::thread;
+            use std::sync::{
+                Arc, Mutex,
+                atomic::{
+                    AtomicU8, AtomicBool, Ordering,
+                }
+            };
+            use std::cell::RefCell;
+            use std::process::Command;
 
             static NONBLOCK_TIMEOUT: u64 = 5;
 
@@ -64,6 +80,21 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                     let p = entry.path();
                     if let Some(s) = p.to_str() {
                         if p.is_file() && s.contains("example.config") {
+                            ret.push(s.to_string());
+                        }
+                    }
+                }
+                Ok(ret)
+            }
+
+            fn list_post_checks() -> std::io::Result<Vec<String>> {
+                let mut ret = Vec::new();
+                let dir = Path::new(#conf_examples_dir);
+                for entry in fs::read_dir(dir)? {
+                    let entry = entry?;
+                    let p = entry.path();
+                    if let Some(s) = p.to_str() {
+                        if p.is_file() && s.contains("post-check") && s.contains(".py") {
                             ret.push(s.to_string());
                         }
                     }
@@ -98,28 +129,11 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
             }
 
             #[test]
-            fn #accept_test_ident () {
-                let module = #st_name::new(None);
-                let termp = Packet::Terminate;
-                let start = Instant::now();
-                assert!(module.accept(termp));
-                assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
-                if let Ok(configs) = list_configs() {
-                    for c in configs {
-                        let module = #st_name::new(Some(c));
-                        let start = Instant::now();
-                        assert!(module.accept(termp));
-                        assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
-                    }
-                }
-            }
-
-            #[test]
-            fn #inlet_test_ident () {
+            fn #input_test_ident () {
                 let module = #st_name::new(None);
                 let start = Instant::now();
                 let termp = Packet::Terminate;
-                module.inlet(termp);
+                module.input(termp);
                 assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
                 if let Ok(configs) = list_configs() {
                     for c in configs {
@@ -148,15 +162,71 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
             #[test]
             fn #outlet_test_ident () {
                 let module = #st_name::new(None);
+                module.outlet(Packet::new_alive(&module.name()));
+                let out = module.output();
+                assert!(out.is_some());
+                assert_eq!(out.unwrap(), Packet::new_alive(&module.name()));
+            }
+
+            #[test]
+            fn #output_test_ident () {
+                let module = #st_name::new(None);
                 let start = Instant::now();
-                module.outlet();
+                module.output();
                 assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
                 if let Ok(configs) = list_configs() {
                     for c in configs {
                         let module = #st_name::new(Some(c));
                         let start = Instant::now();
-                        module.outlet();
+                        module.output();
                         assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
+                    }
+                }
+            }
+
+            #[test]
+            fn #fire_test_ident () {
+                let test_fire = |opt: Option<String>| {
+                    let optcopy = match &opt {
+                        Some(s) => Some(s.to_string()),
+                        None => None,
+                    };
+                    let optcopy2 = match &opt {
+                        Some(s) => Some(s.to_string()),
+                        None => None,
+                    };
+
+
+                    let module = #st_name::new(opt);
+                    let message_stack: Arc<Mutex<RefCell<Vec<Packet>>>>
+                        = Arc::new(Mutex::new(RefCell::new(Vec::new())));
+                    let run_control: Arc<AtomicU8> = Arc::new(AtomicU8::new(bach_module::RUN_FIRE));
+                    let conf_arc: Arc<Mutex<RefCell<Option<PathBuf>>>> = match optcopy {
+                        Some(s) => Arc::new(Mutex::new(RefCell::new(Some(PathBuf::from(s))))),
+                        None => Arc::new(Mutex::new(RefCell::new(None))),
+                    };
+                    let name_arc = Arc::new(Mutex::new(RefCell::new(module.name())));
+
+                    let main_method = module.fire();
+                    let result = main_method(&message_stack,&run_control, &conf_arc, &name_arc);
+                    let controlafter = run_control.load(Ordering::SeqCst);
+                    assert!(controlafter == bach_module::RUN_IDLE || controlafter == bach_module::RUN_EARLY_TERM);
+                    assert!(result.is_ok());
+
+                    if let Ok(v) = list_post_checks() {
+                        for check in v {
+                            let status = Command::new("python3")
+                                .arg(&check)
+                                .status()
+                                .expect(&format!("Failed to execute python3 post test {}", check));
+                            assert!(status.success());
+                        }
+                    }
+                };
+                test_fire(None);
+                if let Ok(configs) = list_configs() {
+                    for c in configs {
+                        test_fire(Some(c));
                     }
                 }
             }
@@ -168,15 +238,19 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                     module.init().unwrap();
                     let start = Instant::now();
                     let joinhandle = module.spawn();
-                    let jp = thread::spawn(|| {
-                        thread::sleep(Duration::from_secs(30));
-                        panic!();
-                    });
-                    thread::spawn(move || {
-                        thread::sleep(Duration::from_millis(500));
-                        let termp = Packet::Terminate;
-                        module.inlet(termp);
-                    });
+                    thread::sleep(Duration::from_millis(500));
+                    let termp = Packet::Terminate;
+                    module.input(termp);
+
+                    let mut received_alive = false;
+
+                    for _ in 0..10 {
+                        if let Some(Packet::Alive(_)) = module.output() {
+                            received_alive = true;
+                        }
+                        thread::sleep(Duration::from_millis(250));
+                    }
+                    assert!(received_alive);
                     let res = joinhandle.join().unwrap();
                     assert!(res.is_ok());
                 };

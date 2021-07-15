@@ -4,10 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 use std::thread;
 extern crate bach_module_tests;
@@ -25,6 +26,8 @@ pub struct NoreplySelect {
     pub out_alive: Arc<AtomicBool>,
     #[serde(skip)]
     pub r_log_level: RefCell<String>,
+    #[serde(skip)]
+    pub message_stack: Arc<Mutex<RefCell<Vec<Packet>>>>,
 }
 
 impl NoreplySelect {
@@ -37,6 +40,7 @@ impl NoreplySelect {
                 ctrl: Arc::new(AtomicU8::new(0)),
                 out_alive: Arc::new(AtomicBool::new(false)),
                 r_log_level: RefCell::new(String::new()),
+                message_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
             }
         };
         match config_filename {
@@ -112,21 +116,33 @@ impl Module for NoreplySelect {
         "noreply_select".to_string()
     }
 
+    fn fire(&self) -> ModuleFireMethod {
+        Box::new(|_, run_control, _, _| -> ModResult<()> { 
+            run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
+            Ok(()) 
+        })
+    }
+
+    fn run_status(&self) -> &Arc<AtomicU8> {
+        &self.ctrl
+    }
+
+    fn emit_alive_status(&self) -> &Arc<AtomicBool> {
+        &self.out_alive
+    }
+
+    fn message_stack(&self) -> &Arc<Mutex<RefCell<Vec<Packet>>>> {
+        &self.message_stack
+    }
+
+    fn config_path(&self) -> Option<PathBuf> {
+        None
+    }
+
     fn init(&self) -> ModResult<()> {
         self.r_log_level.borrow_mut().clear();
         self.r_log_level.borrow_mut().push_str(&self.log_level);
         Ok(())
-    }
-
-    fn accept(&self, p: Packet) -> bool {
-        matches!(
-            p,
-            Packet::NotifyGood(_)
-                | Packet::NotifyWarn(_)
-                | Packet::NotifyErr(_)
-                | Packet::NotifyCom(_)
-                | Packet::Terminate
-        )
     }
 
     fn inlet(&self, p: Packet) {
@@ -183,36 +199,12 @@ impl Module for NoreplySelect {
                     NotifyCommand::Undef => (),
                 }
             }
-            Packet::Terminate => {
-                self.ctrl.store(1, Ordering::SeqCst);
-            }
             _ => (),
         }
     }
 
     fn destroy(&self) -> ModResult<()> {
         Ok(())
-    }
-
-    fn outlet(&self) -> Option<Packet> {
-        if self.out_alive.load(Ordering::SeqCst) {
-            self.out_alive.store(false, Ordering::SeqCst);
-            Some(Packet::new_alive(&self.name()))
-        } else {
-            None
-        }
-    }
-
-    fn spawn(&self) -> thread::JoinHandle<ModResult<()>> {
-        let ctrlc = self.ctrl.clone();
-        let alivc = self.out_alive.clone();
-        thread::spawn(move || -> ModResult<()> {
-            while ctrlc.load(Ordering::SeqCst) != 1 {
-                alivc.store(true, Ordering::SeqCst);
-                thread::sleep(std::time::Duration::from_secs(2));
-            }
-            Ok(())
-        })
     }
 }
 

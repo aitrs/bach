@@ -2,35 +2,29 @@ use crate::packet::Packet;
 use crate::queue::Queue;
 use std::cell::RefCell;
 
-pub type Preempt = dyn FnMut(Packet) + Send + Sync;
-pub type Watch = dyn FnMut(Packet) -> bool + Send + Sync;
-pub type Out = dyn FnMut() -> Option<Packet> + Send + Sync;
+pub type Input = dyn FnMut(Packet) + Send + Sync;
+pub type Output = dyn FnMut() -> Option<Packet> + Send + Sync;
 
 pub struct BusConnection {
-    p: Box<Preempt>,
-    w: Box<Watch>,
-    o: Box<Out>,
+    i: Box<Input>,
+    o: Box<Output>,
 }
 
 impl<'z> BusConnection {
-    pub fn new<Fp, Fw, Fo>(p: Fp, w: Fw, o: Fo) -> Self
+    pub fn new<Fi, Fo>(i: Fi, o: Fo) -> Self
     where
-        Fp: 'static + Fn(Packet) + Send + Sync,
-        Fw: 'static + FnMut(Packet) -> bool + Send + Sync,
+        Fi: 'static + Fn(Packet) + Send + Sync,
         Fo: 'static + FnMut() -> Option<Packet> + Send + Sync,
     {
         BusConnection {
-            p: Box::new(p),
-            w: Box::new(w),
+            i: Box::new(i),
             o: Box::new(o),
         }
     }
 
     pub fn perform(&mut self, p: Option<Packet>) -> Option<Packet> {
         if let Some(pp) = p {
-            if (self.w)(pp) {
-                (self.p)(pp);
-            }
+            (self.i)(pp);
         }
 
         (self.o)()
@@ -94,12 +88,6 @@ mod test {
             |_| {
                 assert!(true);
             },
-            |p| -> bool {
-                match p {
-                    Packet::NotifyGood(_) => true,
-                    _ => false,
-                }
-            },
             || -> Option<Packet> { None },
         );
         assert!(bs
@@ -114,12 +102,6 @@ mod test {
             |_| {
                 assert!(true);
             },
-            |p| -> bool {
-                match p {
-                    Packet::NotifyGood(_) => true,
-                    _ => false,
-                }
-            },
             || -> Option<Packet> {
                 let com = BackupCommand::ChangeHost(None, [192, 168, 1, 1]);
                 Some(Packet::BackupCom(PacketCore::from(com)))
@@ -129,23 +111,11 @@ mod test {
             move |_| {
                 assert!(true);
             },
-            |p| -> bool {
-                match p {
-                    Packet::NotifyErr(_) => true,
-                    _ => false,
-                }
-            },
             || -> Option<Packet> { None },
         ));
         b.connect(BusConnection::new(
             move |_| {
-                assert!(false);
-            },
-            |p| -> bool {
-                match p {
-                    Packet::Terminate => true,
-                    _ => false,
-                }
+                assert!(true);
             },
             || -> Option<Packet> { None },
         ));

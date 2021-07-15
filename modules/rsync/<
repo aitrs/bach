@@ -8,6 +8,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
     Arc, Mutex,
 };
+use std::thread;
 use std::time::{Duration, Instant};
 extern crate bach_module_tests;
 use bach_module_tests::*;
@@ -21,7 +22,7 @@ use rsynconfig::*;
 pub struct Rsync {
     ctrl: Arc<AtomicU8>,
     out_alive: Arc<AtomicBool>,
-    config_file: Option<PathBuf>,
+    config_file: PathBuf,
     out_stack: Arc<Mutex<RefCell<Vec<Packet>>>>,
 }
 
@@ -30,10 +31,7 @@ impl Rsync {
         Rsync {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
-            config_file: match config_filename {
-                Some(s) => Some(PathBuf::from(s)),
-                None => None,
-            },
+            config_file: PathBuf::from(config_filename.unwrap_or_else(|| "".to_string())),
             out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
@@ -184,114 +182,30 @@ fn do_umount(
 
 impl Module for Rsync {
     fn name(&self) -> String {
-        if let Some(config_file) = &self.config_file {
-            let conf: RsynConfig =
-                match quick_xml::de::from_reader(BufReader::new(match File::open(&config_file) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        return format!(
-                            "{} : {}",
-                            config_file.to_str().unwrap_or("NOT FOUND"),
-                            e.to_string()
-                        )
-                    }
-                })) {
-                    Ok(conf) => conf,
-                    Err(e) => return e.to_string(),
-                };
+        let conf: RsynConfig =
+            match quick_xml::de::from_reader(BufReader::new(match File::open(&self.config_file) {
+                Ok(f) => f,
+                Err(e) => {
+                    return format!(
+                        "{} : {}",
+                        self.config_file.to_str().unwrap_or("NOT FOUND"),
+                        e.to_string()
+                    )
+                }
+            })) {
+                Ok(conf) => conf,
+                Err(e) => return e.to_string(),
+            };
 
-            conf.label
-        } else {
-            "undefined".to_string()
-        }
+        conf.label
     }
 
     fn fire(&self) -> ModuleFireMethod {
-        Box::new(
-            |message_stack, run_control, config_path, name| -> ModResult<()> {
-                if let Some(path) = config_path.lock()?.borrow().as_ref() {
-                    let config: RsynConfig =
-                        quick_xml::de::from_reader(BufReader::new(File::open(path.as_path())?))?;
-                    for item in config.synchros {
-                        let namecc = name.lock()?.borrow().to_string();
-                        if perform_checks(&item, message_stack, &namecc)
-                            && do_mount(&item, message_stack, &namecc)?
-                        {
-                            let mut cmd = item.to_cmd();
-                            let mut child = cmd.spawn()?;
-
-                            message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
-                                PacketCore::from(LoggerCommand::Write(format!(
-                                    "Command {:?} successfully launched on target {}",
-                                    &cmd,
-                                    item.get_desc()
-                                ))),
-                            ));
-                            let start = Instant::now();
-                            let mut continued = true;
-                            let mut w = None;
-
-                            while run_control.load(Ordering::SeqCst) == bach_module::RUN_RUNNING
-                                && continued
-                            {
-                                w = child.try_wait()?;
-                                if w.is_some() {
-                                    continued = false;
-                                }
-
-                                if let Some(d) = item.timeout {
-                                    if start.elapsed().gt(&Duration::from_secs(d * 60)) {
-                                        continued = false;
-                                        run_control
-                                            .store(bach_module::RUN_MODULE_SPEC1, Ordering::SeqCst);
-                                    }
-                                }
-                            }
-                            let c = run_control.load(Ordering::SeqCst);
-                            if c == bach_module::RUN_TERM
-                                || c == bach_module::RUN_EARLY_TERM
-                                || c == bach_module::RUN_MODULE_SPEC1
-                            {
-                                child.kill()?;
-                                message_stack.lock()?.borrow_mut().push(Packet::new_nw(
-                                    &format!(
-                                        "Synchro for target {} killed before end",
-                                        item.get_desc()
-                                    ),
-                                    &namecc,
-                                    "End",
-                                ));
-                                w = Some(child.wait()?);
-                            }
-
-                            process_rsync_exit_code(
-                                &item,
-                                w.unwrap().code(),
-                                message_stack,
-                                &namecc,
-                            );
-                            do_umount(&item, message_stack, namecc)?;
-                        }
-                    }
-                } else {
-                    println!("Rsync module requires a configuration file");
-                    run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
-                }
-                Ok(())
-            },
-        )
+        Box::new(|message_stack, run_control, config_path| -> ModResult<()> { Ok(()) })
     }
 
     fn run_status(&self) -> &Arc<AtomicU8> {
         &self.ctrl
-    }
-
-    fn config_path(&self) -> Option<PathBuf> {
-        if let Some(path) = &self.config_file {
-            Some(path.clone())
-        } else {
-            None
-        }
     }
 
     fn emit_alive_status(&self) -> &Arc<AtomicBool> {
@@ -303,7 +217,10 @@ impl Module for Rsync {
     }
 
     fn init(&self) -> ModResult<()> {
-        self.outlet(if self.name().contains("error") {
+        self.out_stack
+            .lock()?
+            .borrow_mut()
+            .push(if self.name().contains("error") {
                 Packet::new_ne("ERROR", &self.name(), "Init")
             } else {
                 Packet::new_ng(
@@ -311,15 +228,126 @@ impl Module for Rsync {
                     &self.name(),
                     "Init",
                 )
-            }
-        );
+            });
         Ok(())
     }
 
-    fn inlet(&self, _: Packet) {}
+    fn inlet(&self, p: Packet) {
+        match p {
+            Packet::BackupCom(_) => {
+                if self.ctrl.load(Ordering::SeqCst) != 3 {
+                    self.ctrl.store(1, Ordering::SeqCst);
+                }
+            }
+            Packet::Terminate => {
+                self.ctrl.store(2, Ordering::SeqCst);
+            }
+            Packet::Stop(core) => {
+                let name = core_2_string(&core);
+                if name.eq(&self.name()) {
+                    self.ctrl.store(2, Ordering::SeqCst);
+                }
+            }
+            _ => (),
+        }
+    }
 
     fn destroy(&self) -> ModResult<()> {
         Ok(())
+    }
+
+    fn outlet(&self) -> Option<Packet> {
+        if self.out_alive.load(Ordering::SeqCst) {
+            self.out_alive.store(false, Ordering::SeqCst);
+            Some(Packet::new_alive(&self.name()))
+        } else {
+            match self.out_stack.lock() {
+                Ok(cell) => cell.borrow_mut().pop(),
+                Err(_) => None,
+            }
+        }
+    }
+
+    fn spawn(&self) -> thread::JoinHandle<ModResult<()>> {
+        let ctrlc = self.ctrl.clone();
+        let alivc = self.out_alive.clone();
+        let stackc = self.out_stack.clone();
+        let confc = Arc::new(Mutex::new(PathBuf::from(&self.config_file)));
+        let name = Arc::new(Mutex::new(RefCell::new(self.name())));
+
+        thread::spawn(move || -> ModResult<()> {
+            let mut run = false;
+            while run {
+                let c = ctrlc.load(Ordering::SeqCst);
+                if c == 1 {
+                    ctrlc.store(3, Ordering::SeqCst);
+                    let config: RsynConfig = quick_xml::de::from_reader(BufReader::new(
+                        File::open(confc.lock()?.as_path())?,
+                    ))?;
+                    for item in config.synchros {
+                        let namecc = name.lock()?.borrow().to_string();
+
+                        if perform_checks(&item, &stackc, &namecc)
+                            && do_mount(&item, &stackc, &namecc)?
+                        {
+                            let mut cmd = item.to_cmd();
+                            let mut child = cmd.spawn()?;
+
+                            stackc
+                                .lock()?
+                                .borrow_mut()
+                                .push(Packet::LoggerCom(PacketCore::from(LoggerCommand::Write(
+                                    format!(
+                                        "Command {:?} successfully launched on target {}",
+                                        &cmd,
+                                        item.get_desc()
+                                    ),
+                                ))));
+
+                            let start = Instant::now();
+                            let mut run = true;
+                            let mut w = None;
+                            while ctrlc.load(Ordering::SeqCst) == 3 && run {
+                                w = child.try_wait()?;
+                                if w.is_some() {
+                                    run = false;
+                                }
+
+                                if let Some(d) = item.timeout {
+                                    if start.elapsed().gt(&Duration::from_secs(d * 60)) {
+                                        run = false;
+                                        ctrlc.store(2, Ordering::SeqCst);
+                                    }
+                                }
+                            }
+
+                            if ctrlc.load(Ordering::SeqCst) == 2 {
+                                child.kill()?;
+                                stackc.lock()?.borrow_mut().push(Packet::new_nw(
+                                    &format!(
+                                        "Synchro for target {} killed before end",
+                                        item.get_desc()
+                                    ),
+                                    &namecc,
+                                    "End",
+                                ));
+                                w = Some(child.wait()?);
+                            }
+
+                            process_rsync_exit_code(&item, w.unwrap().code(), &stackc, &namecc);
+                            do_umount(&item, &stackc, namecc)?;
+                        }
+
+                        if c == 2 {
+                            run = false;
+                        }
+                    }
+                } else if c == 2 {
+                    run = false;
+                }
+            }
+            Ok(())
+        })
     }
 }
 

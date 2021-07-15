@@ -3,12 +3,12 @@ use ansi_term::Colour::Red;
 use ansi_term::Colour::Yellow;
 use bach_bus::packet::*;
 use bach_module::*;
+use std::cell::RefCell;
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
-    Arc,
+    Arc, Mutex,
 };
-use std::thread;
-use std::time::{Duration, Instant};
 extern crate bach_module_tests;
 use bach_module_tests::*;
 
@@ -16,6 +16,7 @@ use bach_module_tests::*;
 pub struct StdLogger {
     ctrl: Arc<AtomicU8>,
     out_alive: Arc<AtomicBool>,
+    message_stack: Arc<Mutex<RefCell<Vec<Packet>>>>,
 }
 
 impl Module for StdLogger {
@@ -27,15 +28,27 @@ impl Module for StdLogger {
         Ok(())
     }
 
-    fn accept(&self, p: Packet) -> bool {
-        matches!(
-            p,
-            Packet::NotifyGood(_)
-                | Packet::NotifyWarn(_)
-                | Packet::NotifyErr(_)
-                | Packet::LoggerCom(_)
-                | Packet::Terminate
-        )
+    fn fire(&self) -> ModuleFireMethod {
+        Box::new(|_, run_control, _, _| -> ModResult<()> { 
+            run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
+            Ok(()) 
+        })
+    }
+
+    fn config_path(&self) -> Option<PathBuf> {
+        None
+    }
+
+    fn run_status(&self) -> &Arc<AtomicU8> {
+        &self.ctrl
+    }
+
+    fn emit_alive_status(&self) -> &Arc<AtomicBool> {
+        &self.out_alive
+    }
+
+    fn message_stack(&self) -> &Arc<Mutex<RefCell<Vec<Packet>>>> {
+        &self.message_stack
     }
 
     fn inlet(&self, p: Packet) {
@@ -54,46 +67,12 @@ impl Module for StdLogger {
                     println!("{}", s);
                 }
             }
-            Packet::Terminate => {
-                self.ctrl.store(1, Ordering::SeqCst);
-            }
             _ => (),
         }
     }
 
     fn destroy(&self) -> ModResult<()> {
         Ok(())
-    }
-
-    fn outlet(&self) -> Option<Packet> {
-        if self.out_alive.load(Ordering::SeqCst) {
-            self.out_alive.store(false, Ordering::SeqCst);
-            Some(Packet::new_alive("StdLogger"))
-        } else {
-            None
-        }
-    }
-
-    fn spawn(&self) -> thread::JoinHandle<ModResult<()>> {
-        let ctrlc = self.ctrl.clone();
-        let alivc = self.out_alive.clone();
-
-        thread::spawn(move || -> ModResult<()> {
-            let mut start = Instant::now();
-            loop {
-                let c = ctrlc.load(Ordering::SeqCst);
-                if c == 1 {
-                    break;
-                } else {
-                    thread::sleep(Duration::from_millis(50));
-                    if start.elapsed().gt(&Duration::from_secs(1)) {
-                        alivc.store(true, Ordering::SeqCst);
-                        start = Instant::now();
-                    }
-                }
-            }
-            Ok(())
-        })
     }
 }
 
@@ -102,6 +81,7 @@ impl StdLogger {
         StdLogger {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
+            message_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
 }
