@@ -48,7 +48,6 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
         Span::call_site(),
     );
 
-    let conf_examples_dir = format!("./modules/{}/", st_name).to_lowercase();
 
     let tests = quote! {
         #[cfg(test)]
@@ -74,7 +73,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             fn list_configs() -> std::io::Result<Vec<String>> {
                 let mut ret = Vec::new();
-                let dir = Path::new(#conf_examples_dir);
+                let dir = Path::new("./");
                 for entry in fs::read_dir(dir)? {
                     let entry = entry?;
                     let p = entry.path();
@@ -84,12 +83,13 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                         }
                     }
                 }
+                ret.sort();
                 Ok(ret)
             }
 
             fn list_post_checks() -> std::io::Result<Vec<String>> {
                 let mut ret = Vec::new();
-                let dir = Path::new(#conf_examples_dir);
+                let dir = Path::new("./");
                 for entry in fs::read_dir(dir)? {
                     let entry = entry?;
                     let p = entry.path();
@@ -99,6 +99,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                         }
                     }
                 }
+                ret.sort();
                 Ok(ret)
             }
 
@@ -196,7 +197,6 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                         None => None,
                     };
 
-
                     let module = #st_name::new(opt);
                     let message_stack: Arc<Mutex<RefCell<Vec<Packet>>>>
                         = Arc::new(Mutex::new(RefCell::new(Vec::new())));
@@ -212,21 +212,24 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                     let controlafter = run_control.load(Ordering::SeqCst);
                     assert!(controlafter == bach_module::RUN_IDLE || controlafter == bach_module::RUN_EARLY_TERM);
                     assert!(result.is_ok());
-
-                    if let Ok(v) = list_post_checks() {
-                        for check in v {
-                            let status = Command::new("python3")
-                                .arg(&check)
-                                .status()
-                                .expect(&format!("Failed to execute python3 post test {}", check));
-                            assert!(status.success());
-                        }
-                    }
                 };
+
                 test_fire(None);
+
                 if let Ok(configs) = list_configs() {
                     for c in configs {
+                        println!("Using configuration {}", c);
                         test_fire(Some(c));
+                    }
+                }
+                if let Ok(v) = list_post_checks() {
+                    for check in v {
+                        println!("Doing Check {}", check);
+                        let status = Command::new("python3")
+                            .arg(&check)
+                            .status()
+                            .expect(&format!("Failed to execute post test {}", check));
+                        assert!(status.success());
                     }
                 }
             }

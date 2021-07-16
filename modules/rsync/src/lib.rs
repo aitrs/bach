@@ -48,6 +48,7 @@ fn perform_checks(
     let check_device = item.check_device();
     let check_host = item.check_host_ping();
     let lock_generr = move |format: String| -> bool {
+        println!("{}", &format);
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut()
                 .push(Packet::new_ne(&format, &label, "Prelude checks"));
@@ -210,16 +211,19 @@ impl Module for Rsync {
         Box::new(
             |message_stack, run_control, config_path, name| -> ModResult<()> {
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
+                    println!("Fire rsync start");
                     let config: RsynConfig =
                         quick_xml::de::from_reader(BufReader::new(File::open(path.as_path())?))?;
                     for item in config.synchros {
                         let namecc = name.lock()?.borrow().to_string();
+                        println!("Config name : {}", namecc);
                         if perform_checks(&item, message_stack, &namecc)
                             && do_mount(&item, message_stack, &namecc)?
                         {
+                            println!("Passed checks");
                             let mut cmd = item.to_cmd();
                             let mut child = cmd.spawn()?;
-
+                            println!("Spawning {:?}", cmd);
                             message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
                                 PacketCore::from(LoggerCommand::Write(format!(
                                     "Command {:?} successfully launched on target {}",
@@ -266,13 +270,17 @@ impl Module for Rsync {
 
                             process_rsync_exit_code(
                                 &item,
-                                w.unwrap().code(),
+                                match w {
+                                    Some(proc) => proc.code(),
+                                    None => Some(0),
+                                },
                                 message_stack,
                                 &namecc,
                             );
                             do_umount(&item, message_stack, namecc)?;
                         }
                     }
+                    run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 } else {
                     println!("Rsync module requires a configuration file");
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);

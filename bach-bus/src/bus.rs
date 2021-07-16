@@ -10,7 +10,7 @@ pub struct BusConnection {
     o: Box<Output>,
 }
 
-impl<'z> BusConnection {
+impl BusConnection {
     pub fn new<Fi, Fo>(i: Fi, o: Fo) -> Self
     where
         Fi: 'static + Fn(Packet) + Send + Sync,

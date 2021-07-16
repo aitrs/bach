@@ -15,7 +15,7 @@ source /root/.cargo/env; cargo clippy'''
 
     stage('test') {
       steps {
-        sh 'source /root/.cargo/env; cargo test'
+        sh 'source /root/.cargo/env; cargo test  -- --nocapture --test-threads=1'
       }
     }
 

@@ -1,0 +1,6 @@
+<rsync-config label="test1">
+	<synchro use-host-name="true" day-by-day="false" delete="true">
+		<type directory="../../testing-data/dummy-dat3/" />
+		<source>../../testing-data/dummy-dat/</source>
+	</synchro>
+</rsync-config>
