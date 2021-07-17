@@ -8,4 +8,4 @@ if __name__ == '__main__':
         stat = stat * -1
 
     os.system('ssh root@bach.dest.1 rm -r /root/dummy-dat/*')
-    os._exit(stat)
+    os._exit(0)

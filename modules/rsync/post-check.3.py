@@ -20,4 +20,4 @@ if __name__ == '__main__':
     if stat < 0:
         stat = stat *-1
     os.system('ssh root@bach.dest.1 rm -r /root/dummy-dat-weekday/{}/*'.format(get_day()))
-    os._exit(stat)
+    os._exit(0)
