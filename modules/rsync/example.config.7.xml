@@ -1,7 +1,7 @@
 <rsync-config label="test7">
 	<synchro use-host-name="true" day-by-day="true" delete="true">
 		<type>
-			<mount device="/root/test.img" path="/root/test2/" loop="true" offset="1048576" unmount="true" />
+			<mount device="/root/test2.img" path="/root/test2/" loop="true" offset="1048576" unmount="true" />
 		</type>
 		<source>/root/dummy-dat/</source>
 		<host name="bach.dest.1" ip="192.168.10.25" port="22" user="root" password="genesis1" />

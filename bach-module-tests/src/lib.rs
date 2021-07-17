@@ -200,7 +200,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                     let module = #st_name::new(opt);
                     let message_stack: Arc<Mutex<RefCell<Vec<Packet>>>>
                         = Arc::new(Mutex::new(RefCell::new(Vec::new())));
-                    let run_control: Arc<AtomicU8> = Arc::new(AtomicU8::new(bach_module::RUN_FIRE));
+                    let run_control: Arc<AtomicU8> = Arc::new(AtomicU8::new(bach_module::RUN_RUNNING));
                     let conf_arc: Arc<Mutex<RefCell<Option<PathBuf>>>> = match optcopy {
                         Some(s) => Arc::new(Mutex::new(RefCell::new(Some(PathBuf::from(s))))),
                         None => Arc::new(Mutex::new(RefCell::new(None))),

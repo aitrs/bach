@@ -140,7 +140,7 @@ impl RsynConfigItem {
         }
 
         if self.delete {
-            ret.arg("--delete-after").arg("--force");
+            ret.arg("--delete");
         }
 
         match &self.exclude {
@@ -184,9 +184,16 @@ impl RsynConfigItem {
     }
 
     pub fn check_mounted(&self) -> Result<bool, Box<dyn std::error::Error>> {
+        #[cfg(test)]
+        println!("Checking if target is mounted");
         match &self.ttype.to_enum() {
             TargetType::Directory(_) => Ok(true),
             TargetType::Mount(e) => {
+                let mut path = e.path.to_string();
+                if path.ends_with("/") {
+                    path.truncate(path.len() - 1);
+                }
+                    
                 let mut cmd = if self.host.is_some() {
                     Command::new("ssh")
                 } else {
@@ -213,10 +220,16 @@ impl RsynConfigItem {
                         cmd.arg("-h");
                     }
                 }
-
+                #[cfg(test)]
+                println!("Spawning {:?}", &cmd);
                 let child = cmd.stdout(Stdio::piped()).spawn()?;
                 for line in std::io::BufReader::new(child.stdout.unwrap()).lines() {
-                    if line?.contains(&e.device) {
+                    let s = line?.to_string();
+                    #[cfg(test)]
+                    println!("Scanning line {} for path {}", &s, &path);
+                    if s.contains(&path) {
+                        #[cfg(test)]
+                        println!("Line contains {} => target is already mounted", e.path);
                         return Ok(true);
                     }
                 }
@@ -269,7 +282,11 @@ impl RsynConfigItem {
                         cmd.arg("-o").arg(&options);
                     }
                     cmd.arg(&e.device).arg(&e.path);
-                    Ok(cmd.spawn()?.wait()?.success())
+                    #[cfg(test)]
+                    println!("Mount command : {:?}", &cmd);
+                    let stat = cmd.status()?;
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    Ok(stat.success())
                 }
             }
         }
@@ -302,7 +319,8 @@ impl RsynConfigItem {
                         None => (),
                     }
                     cmd.arg(&e.path);
-                    Ok(cmd.spawn()?.wait()?.success())
+                    let stat = cmd.status()?;
+                    Ok(stat.success())
                 } else {
                     Ok(true)
                 }

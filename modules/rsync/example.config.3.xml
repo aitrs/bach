@@ -1,7 +1,7 @@
 <rsync-config label="test3">
 	<synchro use-host-name="true" day-by-day="true" delete="true">
 		<type directory="/root/dummy-dat-weekday/" />
-		<source>./testing-data/dummy-dat/</source>
+		<source>../../testing-data/dummy-dat/</source>
 		<host name="bach.dest.1" ip="192.168.10.25" port="22" user="root" password="genesis1" />
 	</synchro>
 </rsync-config>

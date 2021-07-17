@@ -210,19 +210,24 @@ impl Module for Rsync {
     fn fire(&self) -> ModuleFireMethod {
         Box::new(
             |message_stack, run_control, config_path, name| -> ModResult<()> {
+                bach_module::wait_for_running_status(run_control);
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
+                    #[cfg(test)]
                     println!("Fire rsync start");
                     let config: RsynConfig =
                         quick_xml::de::from_reader(BufReader::new(File::open(path.as_path())?))?;
                     for item in config.synchros {
                         let namecc = name.lock()?.borrow().to_string();
+                        #[cfg(test)]
                         println!("Config name : {}", namecc);
                         if perform_checks(&item, message_stack, &namecc)
                             && do_mount(&item, message_stack, &namecc)?
                         {
+                            #[cfg(test)]
                             println!("Passed checks");
                             let mut cmd = item.to_cmd();
                             let mut child = cmd.spawn()?;
+                            #[cfg(test)]
                             println!("Spawning {:?}", cmd);
                             message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
                                 PacketCore::from(LoggerCommand::Write(format!(
@@ -234,10 +239,14 @@ impl Module for Rsync {
                             let start = Instant::now();
                             let mut continued = true;
                             let mut w = None;
+                            
+                            while continued
+                            {   
+                                let c = run_control.load(Ordering::SeqCst);
+                                if c != bach_module::RUN_RUNNING {
+                                    continued = false;
+                                }
 
-                            while run_control.load(Ordering::SeqCst) == bach_module::RUN_RUNNING
-                                && continued
-                            {
                                 w = child.try_wait()?;
                                 if w.is_some() {
                                     continued = false;
@@ -250,6 +259,7 @@ impl Module for Rsync {
                                             .store(bach_module::RUN_MODULE_SPEC1, Ordering::SeqCst);
                                     }
                                 }
+                                std::thread::sleep(std::time::Duration::from_millis(100));
                             }
                             let c = run_control.load(Ordering::SeqCst);
                             if c == bach_module::RUN_TERM
@@ -277,11 +287,13 @@ impl Module for Rsync {
                                 message_stack,
                                 &namecc,
                             );
+                            std::thread::sleep(std::time::Duration::from_secs(1));
                             do_umount(&item, message_stack, namecc)?;
                         }
                     }
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 } else {
+                    #[cfg(test)]
                     println!("Rsync module requires a configuration file");
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 }

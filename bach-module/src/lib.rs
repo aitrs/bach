@@ -98,6 +98,14 @@ impl From<Box<dyn std::any::Any + Send>> for ModError {
     }
 }
 
+pub fn wait_for_running_status(run_control: &Arc<AtomicU8>) {
+    let mut c = run_control.load(Ordering::SeqCst);
+    while c != RUN_RUNNING {
+        c = run_control.load(Ordering::SeqCst);
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
 /// Convenience type for results in the ['Module'] trait.
 pub type ModResult<T> = Result<T, ModError>;
 
