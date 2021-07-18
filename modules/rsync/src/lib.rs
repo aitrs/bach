@@ -112,6 +112,7 @@ fn process_rsync_exit_code(
     }
 
     match code.unwrap() {
+        -1 => lock_generr("Rsync killed before end of execution"),
         0 => lock_gengood("Ok"),
         1 => lock_generr("Syntax or usage error"),
         2 => lock_generr("Incompatible protocol"),
@@ -172,11 +173,10 @@ fn do_umount(
                     &namecc,
                     "Unmount",
                 ));
-                Err(
-                    ModError::new(
-                        &format!("Target {} was not numounted", item.get_desc())
-                    )
-                )
+                Err(ModError::new(&format!(
+                    "Target {} was not numounted",
+                    item.get_desc()
+                )))
             } else {
                 Ok(())
             }
@@ -191,14 +191,12 @@ fn do_umount(
                 &namecc,
                 "Unmount",
             ));
-            Err(
-                ModError::new(
-                    &format!("Target {} umount crashed", item.get_desc())
-                )
-            )
+            Err(ModError::new(&format!(
+                "Target {} umount crashed",
+                item.get_desc()
+            )))
         }
     }
-
 }
 
 impl Module for Rsync {
@@ -255,51 +253,44 @@ impl Module for Rsync {
                                 ))),
                             ));
                             let start = Instant::now();
-                            let mut continued = true;
-                            let mut w = None;
-
-                            while continued {
+                            let w = loop {
                                 let c = run_control.load(Ordering::SeqCst);
-                                if c != bach_module::RUN_RUNNING {
-                                    continued = false;
+                                if c == bach_module::RUN_TERM
+                                    || c == bach_module::RUN_EARLY_TERM
+                                    || c == bach_module::RUN_MODULE_SPEC1
+                                {
+                                    child.kill()?;
+                                    message_stack.lock()?.borrow_mut().push(Packet::new_nw(
+                                        &format!(
+                                            "Synchro for target {} killed before end",
+                                            item.get_desc()
+                                        ),
+                                        &namecc,
+                                        "End",
+                                    ));
+                                    break Some(child.wait()?);
                                 }
 
-                                w = child.try_wait()?;
+                                let w = child.try_wait()?;
                                 if w.is_some() {
-                                    continued = false;
+                                    break w;
                                 }
 
                                 if let Some(d) = item.timeout {
                                     if start.elapsed().gt(&Duration::from_secs(d * 60)) {
-                                        continued = false;
                                         run_control
                                             .store(bach_module::RUN_MODULE_SPEC1, Ordering::SeqCst);
+                                        break None;
                                     }
                                 }
                                 std::thread::sleep(std::time::Duration::from_millis(100));
-                            }
-                            let c = run_control.load(Ordering::SeqCst);
-                            if c == bach_module::RUN_TERM
-                                || c == bach_module::RUN_EARLY_TERM
-                                || c == bach_module::RUN_MODULE_SPEC1
-                            {
-                                child.kill()?;
-                                message_stack.lock()?.borrow_mut().push(Packet::new_nw(
-                                    &format!(
-                                        "Synchro for target {} killed before end",
-                                        item.get_desc()
-                                    ),
-                                    &namecc,
-                                    "End",
-                                ));
-                                w = Some(child.wait()?);
-                            }
+                            };
 
                             process_rsync_exit_code(
                                 &item,
                                 match w {
                                     Some(proc) => proc.code(),
-                                    None => Some(0),
+                                    None => Some(-1),
                                 },
                                 message_stack,
                                 &namecc,
