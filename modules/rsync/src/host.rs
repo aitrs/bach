@@ -20,6 +20,8 @@ pub struct Host {
     port: u16,
     user: String,
     password: String,
+    #[serde(rename = "ignore-ping")]
+    ignore_ping: Option<bool>,
 }
 
 fn create_icmp_p<'a>(
@@ -58,6 +60,7 @@ impl Host {
             user: user.to_string(),
             port: 22,
             password: password.to_string(),
+            ignore_ping: None,
         }
     }
 
@@ -86,6 +89,12 @@ impl Host {
     }
 
     pub fn ping_test(&self, times: u16) -> Result<u16, Error> {
+        if let Some(b) = self.ignore_ping {
+            if b {
+                return Ok(times);
+            }
+        }
+
         let (mut tx, mut rx) = match transport_channel(
             EchoReplyPacket::minimum_packet_size(),
             Layer3(IpNextHeaderProtocols::Icmp),
