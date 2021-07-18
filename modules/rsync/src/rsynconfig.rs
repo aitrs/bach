@@ -5,6 +5,8 @@ use std::io::prelude::*;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::{Instant, Duration};
+use bach_module::ModResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Label(pub String);
@@ -183,7 +185,7 @@ impl RsynConfigItem {
         }
     }
 
-    pub fn check_mounted(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn check_mounted(&self) -> ModResult<bool> {
         #[cfg(test)]
         println!("Checking if target is mounted");
         match &self.ttype.to_enum() {
@@ -238,7 +240,7 @@ impl RsynConfigItem {
         }
     }
 
-    pub fn mount_target(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn mount_target(&self) -> ModResult<bool> {
         match &self.ttype.to_enum() {
             TargetType::Directory(_) => Ok(true),
             TargetType::Mount(e) => {
@@ -284,9 +286,24 @@ impl RsynConfigItem {
                     cmd.arg(&e.device).arg(&e.path);
                     #[cfg(test)]
                     println!("Mount command : {:?}", &cmd);
-                    let stat = cmd.status()?;
-                    std::thread::sleep(std::time::Duration::from_secs(10));
-                    Ok(stat.success())
+                    let mut child = cmd.spawn()?;
+                    let start = Instant::now();
+                    let mut status = None;
+                    let mut run = false;
+                    while run {
+                        status = child.try_wait()?;
+                        if status.is_some() {
+                            run = false;
+                        } else if start.elapsed().gt(&Duration::from_secs(600)) {
+                            return Err(bach_module::ModError::new(&format!("Mount command {:?} didn't returned after 10 minutes, should check target, aborting job", &cmd)));
+                        }
+                    }
+                    std::thread::sleep(Duration::from_secs(10));
+                    if let Some(stat) = status {
+                        Ok(stat.success())
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
         }

@@ -143,6 +143,7 @@ fn do_mount(
     stackc: &Arc<Mutex<RefCell<Vec<Packet>>>>,
     namecc: &str,
 ) -> ModResult<bool> {
+    println!("Doing Mount");
     let mount = item.mount_target();
     if !mount.unwrap_or(false) {
         stackc.lock()?.borrow_mut().push(Packet::new_ne(
@@ -150,8 +151,10 @@ fn do_mount(
             namecc,
             "Mount",
         ));
+        println!("Mount failed");
         Ok(false)
     } else {
+        println!("Mount success");
         Ok(true)
     }
 }
@@ -171,9 +174,9 @@ fn do_umount(
                 ));
             }
         }
-        Err(_) => {
+        Err(e) => {
             stackc.lock()?.borrow_mut().push(Packet::new_ne(
-                &format!("Target {} unmount crashed", item.get_desc()),
+                &format!("Target {} unmount crashed: {}", item.get_desc(), e.to_string()),
                 &namecc,
                 "Unmount",
             ));
