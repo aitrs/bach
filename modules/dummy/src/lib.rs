@@ -6,7 +6,7 @@ use std::io::prelude::*;
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
-   Arc, Mutex,
+    Arc, Mutex,
 };
 extern crate bach_module_tests;
 use bach_module_tests::*;

@@ -2,8 +2,7 @@ use noreply_select::NoreplySelect;
 use std::cell::RefCell;
 use std::sync::{
     atomic::{AtomicBool, AtomicU8},
-    Arc,
-    Mutex
+    Arc, Mutex,
 };
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let norep = NoreplySelect {

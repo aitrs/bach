@@ -29,9 +29,9 @@ impl Module for StdLogger {
     }
 
     fn fire(&self) -> ModuleFireMethod {
-        Box::new(|_, run_control, _, _| -> ModResult<()> { 
+        Box::new(|_, run_control, _, _| -> ModResult<()> {
             run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
-            Ok(()) 
+            Ok(())
         })
     }
 

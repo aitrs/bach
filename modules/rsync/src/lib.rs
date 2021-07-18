@@ -176,7 +176,11 @@ fn do_umount(
         }
         Err(e) => {
             stackc.lock()?.borrow_mut().push(Packet::new_ne(
-                &format!("Target {} unmount crashed: {}", item.get_desc(), e.to_string()),
+                &format!(
+                    "Target {} unmount crashed: {}",
+                    item.get_desc(),
+                    e.to_string()
+                ),
                 &namecc,
                 "Unmount",
             ));
@@ -242,9 +246,8 @@ impl Module for Rsync {
                             let start = Instant::now();
                             let mut continued = true;
                             let mut w = None;
-                            
-                            while continued
-                            {   
+
+                            while continued {
                                 let c = run_control.load(Ordering::SeqCst);
                                 if c != bach_module::RUN_RUNNING {
                                     continued = false;
@@ -327,15 +330,14 @@ impl Module for Rsync {
 
     fn init(&self) -> ModResult<()> {
         self.outlet(if self.name().contains("error") {
-                Packet::new_ne("ERROR", &self.name(), "Init")
-            } else {
-                Packet::new_ng(
-                    &format!("{} rsync module initialized", self.name()),
-                    &self.name(),
-                    "Init",
-                )
-            }
-        );
+            Packet::new_ne("ERROR", &self.name(), "Init")
+        } else {
+            Packet::new_ng(
+                &format!("{} rsync module initialized", self.name()),
+                &self.name(),
+                "Init",
+            )
+        });
         Ok(())
     }
 

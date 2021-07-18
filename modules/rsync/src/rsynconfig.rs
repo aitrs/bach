@@ -1,12 +1,12 @@
 use crate::host::Host;
+use bach_module::ModResult;
 use chrono::{prelude::*, Local, Weekday};
 use serde::{Deserialize, Serialize};
 use std::io::prelude::*;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::time::{Instant, Duration};
-use bach_module::ModResult;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Label(pub String);
@@ -195,7 +195,7 @@ impl RsynConfigItem {
                 if path.ends_with("/") {
                     path.truncate(path.len() - 1);
                 }
-                    
+
                 let mut cmd = if self.host.is_some() {
                     Command::new("ssh")
                 } else {
@@ -288,21 +288,13 @@ impl RsynConfigItem {
                     println!("Mount command : {:?}", &cmd);
                     let mut child = cmd.spawn()?;
                     let start = Instant::now();
-                    let mut status = None;
-                    let mut run = false;
-                    while run {
-                        status = child.try_wait()?;
-                        if status.is_some() {
-                            run = false;
+                    loop {
+                        if let Some(stat) = child.try_wait()? {
+                            std::thread::sleep(Duration::from_secs(10));
+                            return Ok(stat.success());
                         } else if start.elapsed().gt(&Duration::from_secs(600)) {
                             return Err(bach_module::ModError::new(&format!("Mount command {:?} didn't returned after 10 minutes, should check target, aborting job", &cmd)));
                         }
-                    }
-                    std::thread::sleep(Duration::from_secs(10));
-                    if let Some(stat) = status {
-                        Ok(stat.success())
-                    } else {
-                        Ok(false)
                     }
                 }
             }

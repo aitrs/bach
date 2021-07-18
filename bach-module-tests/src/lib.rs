@@ -24,7 +24,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
         &format!("bach_module_std_destroy_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
     );
-    
+
     let outlet_test_ident = syn::Ident::new(
         &format!("bach_module_std_outlet_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
@@ -47,7 +47,6 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
         &format!("bach_module_std_fire_test_for_{}", st_name).to_lowercase(),
         Span::call_site(),
     );
-
 
     let tests = quote! {
         #[cfg(test)]
