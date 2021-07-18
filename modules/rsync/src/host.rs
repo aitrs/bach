@@ -109,7 +109,7 @@ impl Host {
             let now = std::time::Instant::now();
             let mut recv_it = icmp_packet_iter(&mut rx);
             while run {
-                match recv_it.next_with_timeout(std::time::Duration::from_millis(1000)) {
+                match recv_it.next_with_timeout(std::time::Duration::from_secs(10)) {
                     Ok(ret) => {
                         if let Some(packet) = ret {
                             if let Some(_reply) = EchoReplyPacket::new(packet.0.packet()) {
