@@ -295,6 +295,7 @@ impl RsynConfigItem {
                         } else if start.elapsed().gt(&Duration::from_secs(600)) {
                             return Err(bach_module::ModError::new(&format!("Mount command {:?} didn't returned after 10 minutes, should check target, aborting job", &cmd)));
                         }
+                        std::thread::sleep(Duration::from_millis(100));
                     }
                 }
             }
