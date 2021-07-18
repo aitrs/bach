@@ -172,6 +172,13 @@ fn do_umount(
                     &namecc,
                     "Unmount",
                 ));
+                Err(
+                    ModError::new(
+                        &format!("Target {} was not numounted", item.get_desc())
+                    )
+                )
+            } else {
+                Ok(())
             }
         }
         Err(e) => {
@@ -184,10 +191,14 @@ fn do_umount(
                 &namecc,
                 "Unmount",
             ));
+            Err(
+                ModError::new(
+                    &format!("Target {} umount crashed", item.get_desc())
+                )
+            )
         }
     }
 
-    Ok(())
 }
 
 impl Module for Rsync {
@@ -296,6 +307,7 @@ impl Module for Rsync {
                             std::thread::sleep(std::time::Duration::from_secs(1));
                             do_umount(&item, message_stack, namecc)?;
                         }
+                        std::thread::sleep(std::time::Duration::from_secs(10));
                     }
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 } else {

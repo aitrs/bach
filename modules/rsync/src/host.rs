@@ -105,7 +105,7 @@ impl Host {
                     run = false;
                 }
             }
-
+            println!("Ping {}", self.ip);
             let now = std::time::Instant::now();
             let mut recv_it = icmp_packet_iter(&mut rx);
             while run {
@@ -114,6 +114,7 @@ impl Host {
                         if let Some(packet) = ret {
                             if let Some(_reply) = EchoReplyPacket::new(packet.0.packet()) {
                                 if packet.1.eq(&IpAddr::V4(self.ip)) {
+                                    println!("Received ping");
                                     ping_count += 1;
                                     run = false;
                                 }
