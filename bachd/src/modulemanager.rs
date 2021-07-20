@@ -233,41 +233,45 @@ impl ModuleManager {
         ModSpawnState::NotFound
     }
 
-    pub fn respawn(&self, mod_name: &str) -> ModSpawnState {
+    pub fn respawn(&self, mod_name: &str) -> Option<ModSpawnState> {
         let mut dex = 0;
-        for m in self.spwned.borrow().iter() {
-            if m.name.eq(&mod_name) {
-                break;
-            }
-            dex += 1;
-        }
-        let torespawn = self.spwned.borrow_mut().remove(dex);
-        match torespawn.handle.join() {
-            Ok(res) => match res {
-                Ok(()) => {
-                    self.output.replace(Some(Packet::new_nw(
-                        &format!("Module {} stopped", mod_name),
-                        "Module Manager",
-                        "Respawn",
-                    )));
+        if let Ok(mut spawned) = self.spwned.try_borrow_mut(){
+            for m in spawned.iter() {
+                if m.name.eq(&mod_name) {
+                    break;
                 }
-                Err(e) => {
+                dex += 1;
+            }
+            let torespawn = spawned.remove(dex);
+            match torespawn.handle.join() {
+                Ok(res) => match res {
+                    Ok(()) => {
+                        self.output.replace(Some(Packet::new_nw(
+                            &format!("Module {} stopped", mod_name),
+                            "Module Manager",
+                            "Respawn",
+                        )));
+                    }
+                    Err(e) => {
+                        self.output.replace(Some(Packet::new_ne(
+                            &format!("Module {} exited with error {}", mod_name, e.to_string()),
+                            "Module Manager",
+                            "Respawn",
+                        )));
+                    }
+                },
+                Err(_) => {
                     self.output.replace(Some(Packet::new_ne(
-                        &format!("Module {} exited with error {}", mod_name, e.to_string()),
+                        &format!("Module {} panicked", mod_name),
                         "Module Manager",
                         "Respawn",
                     )));
                 }
-            },
-            Err(_) => {
-                self.output.replace(Some(Packet::new_ne(
-                    &format!("Module {} panicked", mod_name),
-                    "Module Manager",
-                    "Respawn",
-                )));
             }
+            Some(self.spawn(&mod_name))
+        } else {
+            None
         }
-        self.spawn(&mod_name)
     }
 
     pub fn fire_cyclic(&self) -> ModResult<()> {
