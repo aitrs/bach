@@ -52,19 +52,32 @@ impl Module for StdLogger {
     }
 
     fn inlet(&self, p: Packet) {
+        let nowstr = chrono::Utc::now().to_rfc2822();
         match p {
             Packet::NotifyGood(_) => {
-                println!("{}", Green.paint(Notification::from(p).to_string()));
+                println!(
+                    "[{}] {}",
+                    Green.paint(nowstr),
+                    Green.paint(Notification::from(p).to_string())
+                );
             }
             Packet::NotifyWarn(_) => {
-                println!("{}", Yellow.paint(Notification::from(p).to_string()));
+                println!(
+                    "[{}] {}",
+                    Yellow.paint(nowstr),
+                    Yellow.paint(Notification::from(p).to_string())
+                );
             }
             Packet::NotifyErr(_) => {
-                println!("{}", Red.paint(Notification::from(p).to_string()));
+                println!(
+                    "[{}] {}",
+                    Red.paint(nowstr),
+                    Red.paint(Notification::from(p).to_string())
+                );
             }
             Packet::LoggerCom(e) => {
                 if let LoggerCommand::Write(s) = LoggerCommand::from(e) {
-                    println!("{}", s);
+                    println!("[{}] {}", nowstr, s);
                 }
             }
             _ => (),

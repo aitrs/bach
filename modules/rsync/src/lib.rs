@@ -51,7 +51,7 @@ fn perform_checks(
         println!("{}", &format);
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut()
-                .push(Packet::new_ne(&format, &label, "Prelude checks"));
+                .push(Packet::new_ng(&format, &label, "Prelude checks"));
         }
         false
     };
@@ -99,7 +99,7 @@ fn process_rsync_exit_code(
 
     let lock_gengood = move |format: &str| {
         if let Ok(cell) = stack.lock() {
-            cell.borrow_mut().push(Packet::new_ne(
+            cell.borrow_mut().push(Packet::new_ng(
                 &format!("Target {} : {}", item.get_desc(), format),
                 &label,
                 "Exit",

@@ -11,6 +11,7 @@ bach-module = { path = "../../bach-module" }
 bach-bus = { path = "../../bach-bus" }
 ansi_term = "0.12.1"
 bach-module-tests = { path = "../../bach-module-tests" }
+chrono = "0.4.19"
 
 [lib]
 crate-type = ["dylib", "lib"]

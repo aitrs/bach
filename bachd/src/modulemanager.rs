@@ -235,7 +235,7 @@ impl ModuleManager {
 
     pub fn respawn(&self, mod_name: &str) -> Option<ModSpawnState> {
         let mut dex = 0;
-        if let Ok(mut spawned) = self.spwned.try_borrow_mut(){
+        if let Ok(mut spawned) = self.spwned.try_borrow_mut() {
             for m in spawned.iter() {
                 if m.name.eq(&mod_name) {
                     break;
