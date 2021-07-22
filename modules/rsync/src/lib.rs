@@ -243,6 +243,7 @@ impl Module for Rsync {
                             println!("Passed checks");
                             let mut cmd = item.to_cmd();
                             let mut child = cmd.spawn()?;
+                            run_control.store(bach_module::RUN_RUNNING, Ordering::SeqCst);
                             #[cfg(test)]
                             println!("Spawning {:?}", cmd);
                             message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
