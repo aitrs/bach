@@ -226,7 +226,6 @@ impl Module for Rsync {
     fn fire(&self) -> ModuleFireMethod {
         Box::new(
             |message_stack, run_control, config_path, name| -> ModResult<()> {
-                bach_module::wait_for_running_status(run_control);
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
                     #[cfg(test)]
                     println!("Fire rsync start");
@@ -244,6 +243,7 @@ impl Module for Rsync {
                             let mut cmd = item.to_cmd();
                             let mut child = cmd.spawn()?;
                             run_control.store(bach_module::RUN_RUNNING, Ordering::SeqCst);
+                            bach_module::wait_for_running_status(run_control);
                             #[cfg(test)]
                             println!("Spawning {:?}", cmd);
                             message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
