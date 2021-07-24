@@ -1,5 +1,8 @@
 use bach_bus::packet::*;
 use bach_module::*;
+use ansi_term::Colour::Blue;
+#[cfg(test)]
+use ansi_term::Colour::Purple;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::BufReader;
@@ -39,6 +42,23 @@ impl Rsync {
     }
 }
 
+fn clog (format: String, onlytest: bool) {
+    let nowstr = chrono::Local::now().to_rfc2822();
+    if onlytest {
+        #[cfg(test)]
+        println!("[{}] {}", Purple.paint(nowstr), Purple.paint(format));
+    } else {
+        println!("[{}] {}", Blue.paint(nowstr), Blue.paint(format));
+    }
+}
+
+fn push_write_command(format: String, message_stack: &Arc<Mutex<RefCell<Vec<Packet>>>>) -> ModResult<()> {
+    message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
+        PacketCore::from(LoggerCommand::Write(format)),
+    ));
+    Ok(())
+}
+
 fn perform_checks(
     item: &RsynConfigItem,
     stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
@@ -48,7 +68,7 @@ fn perform_checks(
     let check_device = item.check_device();
     let check_host = item.check_host_ping();
     let lock_generr = move |format: String| -> bool {
-        println!("{}", &format);
+        clog(format.clone(), false);
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut()
                 .push(Packet::new_ng(&format, &label, "Prelude checks"));
@@ -199,6 +219,42 @@ fn do_umount(
     }
 }
 
+fn wait_or_kill(
+    run_control: &Arc<AtomicU8>, 
+    child: &mut std::process::Child, 
+    timeout: Option<u64>) 
+-> ModResult<Option<std::process::ExitStatus>> {
+    let start = Instant::now();
+    let runc = Arc::downgrade(run_control);
+    let stat = loop {
+        if let Some(st) = child.try_wait()? {
+            break Some(st);
+        }
+
+        if let Some(timeout) = timeout {
+            if start.elapsed().gt(&Duration::from_secs(timeout*60)) {
+                child.kill()?;
+                break None;
+            }
+        }
+
+        if let Some(ctrlc) = runc.upgrade() {
+            let c = ctrlc.load(Ordering::SeqCst);
+            if c == bach_module::RUN_TERM ||
+                c == bach_module::RUN_EARLY_TERM {
+                child.kill()?;
+                break None;
+            }
+        } else {
+            child.kill()?;
+            break None;
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    Ok(stat)
+}
+
 impl Module for Rsync {
     fn name(&self) -> String {
         if let Some(config_file) = &self.config_file {
@@ -226,66 +282,37 @@ impl Module for Rsync {
     fn fire(&self) -> ModuleFireMethod {
         Box::new(
             |message_stack, run_control, config_path, name| -> ModResult<()> {
+
+                bach_module::wait_for_running_status(run_control);
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
-                    #[cfg(test)]
-                    println!("Fire rsync start");
+
+                    clog("Fire Rsync Start".to_string(), true);
                     let config: RsynConfig =
                         quick_xml::de::from_reader(BufReader::new(File::open(path.as_path())?))?;
+
                     for item in config.synchros {
+
                         let namecc = name.lock()?.borrow().to_string();
-                        #[cfg(test)]
-                        println!("Config name : {}", namecc);
+                        clog(format!("Config name: {}", namecc), true);
+                        
                         if perform_checks(&item, message_stack, &namecc)
                             && do_mount(&item, message_stack, &namecc)?
                         {
-                            #[cfg(test)]
-                            println!("Passed checks");
+                            clog("Passed checks".to_string(), true);
                             let mut cmd = item.to_cmd();
                             let mut child = cmd.spawn()?;
                             run_control.store(bach_module::RUN_RUNNING, Ordering::SeqCst);
-                            bach_module::wait_for_running_status(run_control);
-                            #[cfg(test)]
-                            println!("Spawning {:?}", cmd);
-                            message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
-                                PacketCore::from(LoggerCommand::Write(format!(
+                            clog(format!("Spawning {:?}", cmd), true);
+
+                            push_write_command(format!(
                                     "Command {:?} successfully launched on target {}",
                                     &cmd,
                                     item.get_desc()
-                                ))),
-                            ));
-                            let start = Instant::now();
-                            let w = loop {
-                                let c = run_control.load(Ordering::SeqCst);
-                                if c == bach_module::RUN_TERM
-                                    || c == bach_module::RUN_EARLY_TERM
-                                    || c == bach_module::RUN_MODULE_SPEC1
-                                {
-                                    child.kill()?;
-                                    message_stack.lock()?.borrow_mut().push(Packet::new_nw(
-                                        &format!(
-                                            "Synchro for target {} killed before end",
-                                            item.get_desc()
-                                        ),
-                                        &namecc,
-                                        "End",
-                                    ));
-                                    break Some(child.wait()?);
-                                }
-
-                                let w = child.try_wait()?;
-                                if w.is_some() {
-                                    break w;
-                                }
-
-                                if let Some(d) = item.timeout {
-                                    if start.elapsed().gt(&Duration::from_secs(d * 60)) {
-                                        run_control
-                                            .store(bach_module::RUN_MODULE_SPEC1, Ordering::SeqCst);
-                                        break None;
-                                    }
-                                }
-                                std::thread::sleep(std::time::Duration::from_millis(100));
-                            };
+                            ), &message_stack)?;
+                            let w = wait_or_kill(
+                                &run_control,
+                                &mut child,
+                                item.timeout)?;
 
                             process_rsync_exit_code(
                                 &item,
@@ -303,8 +330,7 @@ impl Module for Rsync {
                     }
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 } else {
-                    #[cfg(test)]
-                    println!("Rsync module requires a configuration file");
+                    clog("Rsync module requires a configuration file".to_string(), true);
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 }
                 Ok(())
