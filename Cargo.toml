@@ -5,6 +5,7 @@ members = [
 	"modules/stdlogger",
 	"modules/rsync",
 	"modules/noreply-select",
+	"modules/reporter",
 	"bach-module",
 	"bach-module-tests",
 	"bach-bus",

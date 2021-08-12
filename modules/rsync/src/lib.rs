@@ -1,8 +1,8 @@
-use bach_bus::packet::*;
-use bach_module::*;
 use ansi_term::Colour::Blue;
 #[cfg(test)]
 use ansi_term::Colour::Purple;
+use bach_bus::packet::*;
+use bach_module::*;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::BufReader;
@@ -33,16 +33,13 @@ impl Rsync {
         Rsync {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
-            config_file: match config_filename {
-                Some(s) => Some(PathBuf::from(s)),
-                None => None,
-            },
+            config_file: config_filename.map(PathBuf::from),
             out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
 }
 
-fn clog (format: String, onlytest: bool) {
+fn clog(format: String, onlytest: bool) {
     let nowstr = chrono::Local::now().to_rfc2822();
     if onlytest {
         #[cfg(test)]
@@ -52,10 +49,16 @@ fn clog (format: String, onlytest: bool) {
     }
 }
 
-fn push_write_command(format: String, message_stack: &Arc<Mutex<RefCell<Vec<Packet>>>>) -> ModResult<()> {
-    message_stack.lock()?.borrow_mut().push(Packet::LoggerCom(
-        PacketCore::from(LoggerCommand::Write(format)),
-    ));
+fn push_write_command(
+    format: String,
+    message_stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
+) -> ModResult<()> {
+    message_stack
+        .lock()?
+        .borrow_mut()
+        .push(Packet::LoggerCom(PacketCore::from(LoggerCommand::Write(
+            format,
+        ))));
     Ok(())
 }
 
@@ -71,7 +74,7 @@ fn perform_checks(
         clog(format.clone(), false);
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut()
-                .push(Packet::new_ng(&format, &label, "Prelude checks"));
+                .push(Packet::new_ng(&format, label, "Prelude checks"));
         }
         false
     };
@@ -101,7 +104,7 @@ fn process_rsync_exit_code(
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_nw(
                 &format!("Target {} : {}", item.get_desc(), format),
-                &label,
+                label,
                 "Exit",
             ));
         }
@@ -111,7 +114,7 @@ fn process_rsync_exit_code(
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_ne(
                 &format!("Target {} : {}", item.get_desc(), format),
-                &label,
+                label,
                 "Exit",
             ));
         }
@@ -121,7 +124,7 @@ fn process_rsync_exit_code(
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_ng(
                 &format!("Target {} : {}", item.get_desc(), format),
-                &label,
+                label,
                 "Exit",
             ));
         }
@@ -220,10 +223,10 @@ fn do_umount(
 }
 
 fn wait_or_kill(
-    run_control: &Arc<AtomicU8>, 
-    child: &mut std::process::Child, 
-    timeout: Option<u64>) 
--> ModResult<Option<std::process::ExitStatus>> {
+    run_control: &Arc<AtomicU8>,
+    child: &mut std::process::Child,
+    timeout: Option<u64>,
+) -> ModResult<Option<std::process::ExitStatus>> {
     let start = Instant::now();
     let runc = Arc::downgrade(run_control);
     let stat = loop {
@@ -232,7 +235,7 @@ fn wait_or_kill(
         }
 
         if let Some(timeout) = timeout {
-            if start.elapsed().gt(&Duration::from_secs(timeout*60)) {
+            if start.elapsed().gt(&Duration::from_secs(timeout * 60)) {
                 child.kill()?;
                 break None;
             }
@@ -240,8 +243,7 @@ fn wait_or_kill(
 
         if let Some(ctrlc) = runc.upgrade() {
             let c = ctrlc.load(Ordering::SeqCst);
-            if c == bach_module::RUN_TERM ||
-                c == bach_module::RUN_EARLY_TERM {
+            if c == bach_module::RUN_TERM || c == bach_module::RUN_EARLY_TERM {
                 child.kill()?;
                 break None;
             }
@@ -282,19 +284,16 @@ impl Module for Rsync {
     fn fire(&self) -> ModuleFireMethod {
         Box::new(
             |message_stack, run_control, config_path, name| -> ModResult<()> {
-
                 bach_module::wait_for_running_status(run_control);
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
-
                     clog("Fire Rsync Start".to_string(), true);
                     let config: RsynConfig =
                         quick_xml::de::from_reader(BufReader::new(File::open(path.as_path())?))?;
 
                     for item in config.synchros {
-
                         let namecc = name.lock()?.borrow().to_string();
                         clog(format!("Config name: {}", namecc), true);
-                        
+
                         if perform_checks(&item, message_stack, &namecc)
                             && do_mount(&item, message_stack, &namecc)?
                         {
@@ -304,15 +303,15 @@ impl Module for Rsync {
                             run_control.store(bach_module::RUN_RUNNING, Ordering::SeqCst);
                             clog(format!("Spawning {:?}", cmd), true);
 
-                            push_write_command(format!(
+                            push_write_command(
+                                format!(
                                     "Command {:?} successfully launched on target {}",
                                     &cmd,
                                     item.get_desc()
-                            ), &message_stack)?;
-                            let w = wait_or_kill(
-                                &run_control,
-                                &mut child,
-                                item.timeout)?;
+                                ),
+                                message_stack,
+                            )?;
+                            let w = wait_or_kill(run_control, &mut child, item.timeout)?;
 
                             process_rsync_exit_code(
                                 &item,
@@ -330,7 +329,10 @@ impl Module for Rsync {
                     }
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 } else {
-                    clog("Rsync module requires a configuration file".to_string(), true);
+                    clog(
+                        "Rsync module requires a configuration file".to_string(),
+                        true,
+                    );
                     run_control.store(bach_module::RUN_IDLE, Ordering::SeqCst);
                 }
                 Ok(())
@@ -343,11 +345,7 @@ impl Module for Rsync {
     }
 
     fn config_path(&self) -> Option<PathBuf> {
-        if let Some(path) = &self.config_file {
-            Some(path.clone())
-        } else {
-            None
-        }
+        self.config_file.as_ref().map(|path| path.clone())
     }
 
     fn emit_alive_status(&self) -> &Arc<AtomicBool> {

@@ -1,0 +1,19 @@
+[package]
+name = "reporter"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bach-module = { path = "../../bach-module" }
+bach-bus = { path = "../../bach-bus" }
+serde = { version = "1.0.126", features = ["derive"] }
+serde-xml-rs = "0.4.1"
+quick-xml =  { version = "0.22.0", features = ["serialize"] }
+bach-module-tests = { path = "../../bach-module-tests" }
+chrono = "0.4.19"
+
+
+[lib]
+crate-type = [ "dylib", "lib" ]

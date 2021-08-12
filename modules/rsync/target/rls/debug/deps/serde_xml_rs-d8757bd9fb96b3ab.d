@@ -1,0 +1,12 @@
+/home/dorian/workspace/bach/modules/rsync/target/rls/debug/deps/serde_xml_rs-d8757bd9fb96b3ab.rmeta: /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/lib.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/error.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/mod.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/map.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/seq.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/var.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/ser/mod.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/ser/var.rs
+
+/home/dorian/workspace/bach/modules/rsync/target/rls/debug/deps/serde_xml_rs-d8757bd9fb96b3ab.d: /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/lib.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/error.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/mod.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/map.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/seq.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/var.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/ser/mod.rs /home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/ser/var.rs
+
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/lib.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/error.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/mod.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/map.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/seq.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/de/var.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/ser/mod.rs:
+/home/dorian/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-xml-rs-0.4.1/src/ser/var.rs:
