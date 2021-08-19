@@ -8,6 +8,7 @@ use bach_module::{
 pub struct ReporterSource(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename="reporter")]
 pub struct ReporterConfig {
     pub name: String,
     pub sources: Vec<ReporterSource>,

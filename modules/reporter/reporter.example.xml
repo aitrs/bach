@@ -1,0 +1,4 @@
+<reporter name="test" template="machin.xml" mail-command="noreply_select -p MAILBODY">
+	<sources>test1</sources>
+	<sources>test2</sources>
+</reporter>
