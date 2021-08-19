@@ -8,6 +8,8 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+use handlebars::RenderError;
+
 
 pub static RUN_IDLE: u8 = 0;
 pub static RUN_FIRE: u8 = 1;
@@ -84,6 +86,14 @@ impl From<std::num::ParseIntError> for ModError {
 
 impl From<std::time::SystemTimeError> for ModError {
     fn from(item: std::time::SystemTimeError) -> Self {
+        ModError {
+            message: item.to_string(),
+        }
+    }
+}
+
+impl From<RenderError> for ModError {
+    fn from(item: RenderError) -> Self {
         ModError {
             message: item.to_string(),
         }

@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 bach-bus = { path = "../bach-bus" }
 quick-xml =  { version = "0.22.0", features = ["serialize"] }
+handlebars = "4.1.2"

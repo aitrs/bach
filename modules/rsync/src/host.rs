@@ -114,19 +114,14 @@ impl Host {
                     run = false;
                 }
             }
-            println!("Ping {}", self.ip);
             let now = std::time::Instant::now();
             let mut recv_it = icmp_packet_iter(&mut rx);
             while run {
                 match recv_it.next_with_timeout(std::time::Duration::from_secs(10)) {
                     Ok(ret) => {
-                        println!("Got return");
                         if let Some(packet) = ret {
-                            println!("Got Packet");
                             if let Some(_reply) = EchoReplyPacket::new(packet.0.packet()) {
-                                println!("Got Echoreply from {:?}", packet.1);
                                 if packet.1.eq(&IpAddr::V4(self.ip)) {
-                                    println!("Received ping");
                                     ping_count += 1;
                                     run = false;
                                 }

@@ -4,7 +4,7 @@
 	<log-level>warn</log-level>
 	<module-manager respawn_duration="60">
 		<modules cyclic="true" name="rsync" config-file="config-examples/rsync.example.xml">
-			<whence year="0" month="0" day="1" hour="0" min="1"/>
+			<whence hour="0" min="1"/>
 		</modules>
 		<modules cyclic="false" name="stdlogger">
 		</modules>

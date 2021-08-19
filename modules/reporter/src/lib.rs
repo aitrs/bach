@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{prelude::*, BufReader, LineWriter};
 use std::path::PathBuf;
 use std::sync::{
-    atomic::{AtomicBool, AtomicU8, Ordering},
+    atomic::{AtomicBool, AtomicU8},
     Arc, Mutex,
 };
 extern crate bach_module_tests;
@@ -13,6 +13,8 @@ use bach_module_tests::*;
 
 pub mod reporterconfig;
 use reporterconfig::ReporterConfig;
+pub mod mailtemplate;
+use mailtemplate::gen_mail;
 
 fn tmp_format(s: &str) -> String {
     format!("/tmp/{}.bach.report", s)
@@ -69,7 +71,30 @@ impl Module for Reporter {
             |message_stack, run_control, config_path, name| -> ModResult<()> {
                 bach_module::wait_for_running_status(run_control);
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
-                    // TODO: Read lines and compose mail with them in /tmp/{name}.bach.report
+                    let conf: ReporterConfig = quick_xml::de::from_reader(BufReader::new(File::open(path)?))?;
+                    let tmpfile = File::open(&tmp_format(&conf.name))?;
+                    let rawlines = BufReader::new(tmpfile).lines();
+                    let mut lines: Vec<String> = Vec::new();
+                    for l in rawlines {
+                        if let Ok(line) = l {
+                            lines.push(line);
+                        }
+                    }
+                    let stat = conf.clone().mailcmd(
+                        gen_mail(lines, &conf.template.map(|t| PathBuf::from(t)))?
+                    )?.status()?;
+
+                    if !stat.success() {
+                        if let Ok(stack) = message_stack.lock() {
+                            stack.borrow_mut().push(
+                                Packet::new_ne(
+                                    "Reporter could not send mail",
+                                    &name.lock()?.borrow().to_string(),
+                                    "fire",
+                                )
+                            );
+                        }
+                    }
                 }
                 Ok(())
             },
@@ -144,7 +169,7 @@ impl Module for Reporter {
                     let mut file = LineWriter::new(file);
                     let nowstr = chrono::Utc::now().to_rfc2822();
                     let form = format!("[{}] {}:{}\n", nowstr, prefix, notif.message);
-                    file.write_all(&form.as_bytes());
+                    file.write_all(&form.as_bytes())?;
                 }
             }
 
