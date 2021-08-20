@@ -101,7 +101,8 @@ impl Module for Reporter {
         if let Some(config_file) = &self.config_file {
             let conf: ReporterConfig =
                 quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
-            File::create(&tmp_format(&conf.name))?;
+            let mut file = File::create(&tmp_format(&conf.name))?;
+            file.write_all("Received Notifications : ".as_bytes())?;
             self.outlet(if self.name().contains("error") {
                 Packet::new_ne("ERROR", &self.name(), "Init")
             } else {
