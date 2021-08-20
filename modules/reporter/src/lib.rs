@@ -1,7 +1,7 @@
 use bach_bus::packet::*;
 use bach_module::*;
 use std::cell::RefCell;
-use std::fs::File;
+use std::fs::{File, self};
 use std::io::{prelude::*, BufReader, LineWriter};
 use std::path::PathBuf;
 use std::sync::{
@@ -76,7 +76,7 @@ impl Module for Reporter {
                         lines.push(l);
                     }
                     let stat = conf.clone().mailcmd(
-                        gen_mail(lines, &conf.template.map(PathBuf::from))?
+                        gen_mail(lines, &conf.template.map(PathBuf::from))?.replace('\n', "")
                     )?.status()?;
 
                     if !stat.success() {
@@ -90,6 +90,7 @@ impl Module for Reporter {
                             );
                         }
                     }
+                    fs::remove_file(&tmp_format(&conf.name))?;
                 }
                 Ok(())
             },
@@ -118,7 +119,7 @@ impl Module for Reporter {
         if let Some(config_file) = &self.config_file {
             let conf: ReporterConfig =
                 quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
-            std::fs::remove_file(&tmp_format(&conf.name))?;
+            fs::remove_file(&tmp_format(&conf.name))?;
         }
 
         Ok(())
