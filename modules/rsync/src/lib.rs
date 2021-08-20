@@ -345,7 +345,7 @@ impl Module for Rsync {
     }
 
     fn config_path(&self) -> Option<PathBuf> {
-        self.config_file.as_ref().map(|path| path.clone())
+        self.config_file.as_ref().cloned()
     }
 
     fn emit_alive_status(&self) -> &Arc<AtomicBool> {

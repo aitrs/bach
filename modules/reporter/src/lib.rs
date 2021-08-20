@@ -33,10 +33,7 @@ impl Reporter {
         Reporter {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
-            config_file: match config_filename {
-                Some(s) => Some(PathBuf::from(s)),
-                None => None,
-            },
+            config_file: config_filename.map(PathBuf::from),
             out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
@@ -75,13 +72,11 @@ impl Module for Reporter {
                     let tmpfile = File::open(&tmp_format(&conf.name))?;
                     let rawlines = BufReader::new(tmpfile).lines();
                     let mut lines: Vec<String> = Vec::new();
-                    for l in rawlines {
-                        if let Ok(line) = l {
-                            lines.push(line);
-                        }
+                    for l in rawlines.flatten() {
+                        lines.push(l);
                     }
                     let stat = conf.clone().mailcmd(
-                        gen_mail(lines, &conf.template.map(|t| PathBuf::from(t)))?
+                        gen_mail(lines, &conf.template.map(PathBuf::from))?
                     )?.status()?;
 
                     if !stat.success() {
@@ -134,11 +129,7 @@ impl Module for Reporter {
     }
 
     fn config_path(&self) -> Option<PathBuf> {
-        if let Some(path) = &self.config_file {
-            Some(path.clone())
-        } else {
-            None
-        }
+        self.config_file.clone()
     }
 
     fn emit_alive_status(&self) -> &Arc<AtomicBool> {
@@ -169,7 +160,7 @@ impl Module for Reporter {
                     let mut file = LineWriter::new(file);
                     let nowstr = chrono::Utc::now().to_rfc2822();
                     let form = format!("[{}] {}:{}\n", nowstr, prefix, notif.message);
-                    file.write_all(&form.as_bytes())?;
+                    file.write_all(form.as_bytes())?;
                 }
             }
 

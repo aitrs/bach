@@ -268,7 +268,7 @@ impl ModuleManager {
                     )));
                 }
             }
-            Some(self.spawn(&mod_name))
+            Some(self.spawn(mod_name))
         } else {
             None
         }

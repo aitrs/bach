@@ -192,7 +192,7 @@ impl RsynConfigItem {
             TargetType::Directory(_) => Ok(true),
             TargetType::Mount(e) => {
                 let mut path = e.path.to_string();
-                if path.ends_with("/") {
+                if path.ends_with('/') {
                     path.truncate(path.len() - 1);
                 }
 

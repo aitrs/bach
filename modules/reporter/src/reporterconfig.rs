@@ -19,7 +19,7 @@ pub struct ReporterConfig {
 
 impl ReporterConfig {
     pub fn mailcmd(&self, mailbody: String) -> ModResult<Command> {
-        let mut args: Vec<&str> = self.mail_cmd.split(" ").collect();
+        let mut args: Vec<&str> = self.mail_cmd.split(' ').collect();
         if args.len() <= 1 {
             return Err(
                 ModError::new("Missing at least MAILBODY placeholder in mail command")
