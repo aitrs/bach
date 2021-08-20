@@ -102,7 +102,7 @@ impl Module for Reporter {
             let conf: ReporterConfig =
                 quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
             let mut file = File::create(&tmp_format(&conf.name))?;
-            file.write_all("Received Notifications : ".as_bytes())?;
+            file.write_all("Received Notifications : \n".as_bytes())?;
             self.outlet(if self.name().contains("error") {
                 Packet::new_ne("ERROR", &self.name(), "Init")
             } else {
@@ -158,7 +158,7 @@ impl Module for Reporter {
                     quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
                 let notif = Notification::from(p);
                 if is_provider(&conf, &notif) {
-                    let file = File::open(&tmp_format(&conf.name))?;
+                    let file = fs::OpenOptions::new().append(true).open(&tmp_format(&conf.name))?;
                     let mut file = LineWriter::new(file);
                     let nowstr = chrono::Utc::now().to_rfc2822();
                     let form = format!("[{}] {}:{}\n", nowstr, prefix, notif.message);
