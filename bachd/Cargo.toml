@@ -21,8 +21,9 @@ dummy = { path = "../modules/dummy", optional = true }
 stdlogger = { path = "../modules/stdlogger", optional = true }
 rsync = { path = "../modules/rsync", optional = true }
 noreply-select = { path = "../modules/noreply-select", optional = true }
+reporter = { path = "../modules/reporter", optional = true }
 
 [features]
 default = ["modular"]
 modular = ["libloading"]
-static = ["dummy", "stdlogger", "rsync", "noreply-select"]
+static = ["dummy", "stdlogger", "rsync", "noreply-select", "reporter"]

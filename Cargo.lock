@@ -64,6 +64,7 @@ dependencies = [
  "quick-xml",
  "rand",
  "rayon",
+ "reporter",
  "rsync",
  "serde",
  "serde-xml-rs",
