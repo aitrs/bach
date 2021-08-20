@@ -5,8 +5,9 @@ use bach_bus::packet::*;
 use bach_module::*;
 use std::cell::RefCell;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{prelude::*, BufReader};
 use std::path::PathBuf;
+use std::process::Stdio;
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
     Arc, Mutex,
@@ -97,13 +98,19 @@ fn perform_checks(
 fn process_rsync_exit_code(
     item: &RsynConfigItem,
     code: Option<i32>,
+    stderr: &str,
     stack: &Arc<Mutex<RefCell<Vec<Packet>>>>,
     label: &str,
 ) {
     let lock_genwarn = move |format: &str| {
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_nw(
-                &format!("Target {} : {}", item.get_desc(), format),
+                &format!(
+                    "Target {} : {} => {}",
+                    item.get_desc(),
+                    format,
+                    stderr.to_string()
+                ),
                 label,
                 "Exit",
             ));
@@ -113,7 +120,12 @@ fn process_rsync_exit_code(
     let lock_generr = move |format: &str| {
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut().push(Packet::new_ne(
-                &format!("Target {} : {}", item.get_desc(), format),
+                &format!(
+                    "Target {} : {} => {}",
+                    item.get_desc(),
+                    format,
+                    stderr.to_string()
+                ),
                 label,
                 "Exit",
             ));
@@ -226,12 +238,20 @@ fn wait_or_kill(
     run_control: &Arc<AtomicU8>,
     child: &mut std::process::Child,
     timeout: Option<u64>,
-) -> ModResult<Option<std::process::ExitStatus>> {
+) -> ModResult<Option<(std::process::ExitStatus, String)>> {
     let start = Instant::now();
     let runc = Arc::downgrade(run_control);
     let stat = loop {
         if let Some(st) = child.try_wait()? {
-            break Some(st);
+            let buf = match &mut child.stdout {
+                Some(ref mut out) => {
+                    let mut res = String::new();
+                    out.read_to_string(&mut res)?;
+                    res
+                }
+                None => "".to_string(),
+            };
+            break Some((st, buf));
         }
 
         if let Some(timeout) = timeout {
@@ -299,7 +319,8 @@ impl Module for Rsync {
                         {
                             clog("Passed checks".to_string(), true);
                             let mut cmd = item.to_cmd();
-                            let mut child = cmd.spawn()?;
+                            let mut child =
+                                cmd.stdout(Stdio::null()).stderr(Stdio::piped()).spawn()?;
                             run_control.store(bach_module::RUN_RUNNING, Ordering::SeqCst);
                             clog(format!("Spawning {:?}", cmd), true);
 
@@ -312,13 +333,18 @@ impl Module for Rsync {
                                 message_stack,
                             )?;
                             let w = wait_or_kill(run_control, &mut child, item.timeout)?;
+                            let stderr = match &w {
+                                Some(p) => p.1.to_string(),
+                                None => "".to_string(),
+                            };
 
                             process_rsync_exit_code(
                                 &item,
-                                match w {
-                                    Some(proc) => proc.code(),
+                                match &w {
+                                    Some(proc1) => proc1.0.code(),
                                     None => Some(-1),
                                 },
+                                &stderr,
                                 message_stack,
                                 &namecc,
                             );
