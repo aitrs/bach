@@ -1,4 +1,12 @@
-<reporter name="test" template="machin.xml" mail-command="noreply_select -p MAILBODY">
-	<sources>test1</sources>
-	<sources>test2</sources>
+<reporter name="test" template="machin.xml" level="debug">
+	<source>test1</source>
+	<source>test2</source>
+	<mail-command>
+		<arg>/usr/bin/noreply_select</arg>
+		<arg>-t</arg>
+		<arg>-s</arg>
+		<arg>Bach Report</arg>
+		<arg>-m</arg>
+		<arg>MAILBODY</arg>
+	</mail-command>
 </reporter>

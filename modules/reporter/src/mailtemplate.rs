@@ -1,8 +1,8 @@
-use handlebars::Handlebars;
-use std::path::PathBuf;
 use bach_module::ModResult;
-use std::fs;
+use handlebars::Handlebars;
 use serde::Serialize;
+use std::fs;
+use std::path::PathBuf;
 
 fn gen_template() -> String {
     "
@@ -22,10 +22,11 @@ fn gen_template() -> String {
             </p>
         </body>
     </html>
-    ".to_string() 
+    "
+    .to_string()
 }
 
-pub fn gen_mail(lines: Vec<String>, template: &Option<PathBuf>) -> ModResult<String> {
+pub fn gen_mail(lines: Vec<String>, template: &Option<PathBuf>) -> ModResult<(String, String)> {
     #[derive(Serialize)]
     struct Line {
         color: String,
@@ -45,7 +46,7 @@ pub fn gen_mail(lines: Vec<String>, template: &Option<PathBuf>) -> ModResult<Str
         None => gen_template(),
     };
     let mut severity_level = 0;
-    
+
     for l in lines {
         if l.to_lowercase().contains("warning") || l.to_lowercase().contains("warn") {
             if severity_level < 1 {
@@ -81,21 +82,35 @@ pub fn gen_mail(lines: Vec<String>, template: &Option<PathBuf>) -> ModResult<Str
 
     let reg = Handlebars::new();
     let contents = reg.render_template(&temp_contents, &args)?;
-    Ok(contents)
+    Ok((
+        contents,
+        if severity_level == 1 {
+            "warning".to_string()
+        } else if severity_level == 2 {
+            "error".to_string()
+        } else {
+            "debug".to_string()
+        },
+    ))
 }
-    
+
 #[cfg(test)]
 mod tests {
     use crate::mailtemplate::gen_mail;
     use bach_module::ModResult;
     #[test]
     fn template_mail_generation() -> ModResult<()> {
-        let mail = gen_mail(vec![
-            "foo".to_string(),
-            "Error: bar".to_string(),
-            "Warn: baz".to_string(),
-        ], &None)?;
-        assert_eq!(mail, "
+        let mail = gen_mail(
+            vec![
+                "foo".to_string(),
+                "Error: bar".to_string(),
+                "Warn: baz".to_string(),
+            ],
+            &None,
+        )?;
+        assert_eq!(
+            mail,
+            "
     <html>
         <head></head>
         <body>
@@ -112,7 +127,9 @@ mod tests {
             </p>
         </body>
     </html>
-    ".to_string());
+    "
+            .to_string()
+        );
         Ok(())
     }
 }

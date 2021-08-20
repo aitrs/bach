@@ -1,9 +1,9 @@
 use bach_module::*;
 use dummy::Dummy;
 use noreply_select::NoreplySelect;
+use reporter::Reporter;
 use rsync::Rsync;
 use stdlogger::StdLogger;
-use reporter::Reporter;
 
 pub fn fetch(name: &str, config: Option<String>) -> ModResult<Box<dyn Module>> {
     match name {

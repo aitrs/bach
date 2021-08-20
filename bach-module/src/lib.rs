@@ -1,4 +1,5 @@
 use bach_bus::packet::{core_2_string, BackupCommand, Packet};
+use handlebars::RenderError;
 use std::any::Any;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -8,8 +9,6 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use handlebars::RenderError;
-
 
 pub static RUN_IDLE: u8 = 0;
 pub static RUN_FIRE: u8 = 1;

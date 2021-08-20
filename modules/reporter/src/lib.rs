@@ -1,7 +1,7 @@
 use bach_bus::packet::*;
 use bach_module::*;
 use std::cell::RefCell;
-use std::fs::{File, self};
+use std::fs::{self, File};
 use std::io::{prelude::*, BufReader, LineWriter};
 use std::path::PathBuf;
 use std::sync::{
@@ -72,28 +72,44 @@ impl Module for Reporter {
     fn fire(&self) -> ModuleFireMethod {
         Box::new(
             |message_stack, run_control, config_path, name| -> ModResult<()> {
+                let check_level = |conf: &ReporterConfig, severity: &str| -> bool {
+                    if conf.level.eq("debug") {
+                        true
+                    } else if conf.level.eq("warning") {
+                        !severity.eq("debug")
+                    } else if conf.level.eq("error") {
+                        severity.eq("error")
+                    } else {
+                        false
+                    }
+                };
+
                 bach_module::wait_for_running_status(run_control);
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
-                    let conf: ReporterConfig = quick_xml::de::from_reader(BufReader::new(File::open(path)?))?;
+                    let conf: ReporterConfig =
+                        quick_xml::de::from_reader(BufReader::new(File::open(path)?))?;
                     let tmpfile = File::open(&tmp_format(&conf.name))?;
                     let rawlines = BufReader::new(tmpfile).lines();
                     let mut lines: Vec<String> = Vec::new();
                     for l in rawlines.flatten() {
                         lines.push(l);
                     }
-                    let stat = conf.clone().mailcmd(
-                        gen_mail(lines, &conf.template.map(PathBuf::from))?.replace('\n', "")
-                    )?.status()?;
+                    let mail_and_severity =
+                        gen_mail(lines, &conf.clone().template.map(PathBuf::from))?;
 
-                    if !stat.success() {
-                        if let Ok(stack) = message_stack.lock() {
-                            stack.borrow_mut().push(
-                                Packet::new_ne(
+                    if check_level(&conf, &mail_and_severity.1) {
+                        let stat = conf
+                            .mailcmd(mail_and_severity.0.replace('\n', ""))?
+                            .status()?;
+
+                        if !stat.success() {
+                            if let Ok(stack) = message_stack.lock() {
+                                stack.borrow_mut().push(Packet::new_ne(
                                     "Reporter could not send mail",
                                     &name.lock()?.borrow().to_string(),
                                     "fire",
-                                )
-                            );
+                                ));
+                            }
                         }
                     }
                     fs::remove_file(&tmp_format(&conf.name))?;
@@ -149,7 +165,7 @@ impl Module for Reporter {
 
     fn inlet(&self, p: Packet) {
         let is_provider = move |conf: &ReporterConfig, n: &Notification| {
-            for s in &conf.sources {
+            for s in &conf.source {
                 if s.0.eq(&n.provider) {
                     return true;
                 }
@@ -163,7 +179,9 @@ impl Module for Reporter {
                     quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
                 let notif = Notification::from(p);
                 if is_provider(&conf, &notif) {
-                    let file = fs::OpenOptions::new().append(true).open(&tmp_format(&conf.name))?;
+                    let file = fs::OpenOptions::new()
+                        .append(true)
+                        .open(&tmp_format(&conf.name))?;
                     let mut file = LineWriter::new(file);
                     let nowstr = chrono::Utc::now().to_rfc2822();
                     let form = format!("[{}] {}:{}\n", nowstr, prefix, notif.message);
@@ -195,7 +213,7 @@ impl Module for Reporter {
             }
             Ok(())
         };
-        
+
         if init_file_wrap().is_err() {
             println!(
                 "Reporter {} cannot create file {}",
