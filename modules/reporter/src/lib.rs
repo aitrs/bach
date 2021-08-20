@@ -20,6 +20,12 @@ fn tmp_format(s: &str) -> String {
     format!("/tmp/{}.bach.report", s)
 }
 
+fn init_tmp_file(conf: &ReporterConfig) -> ModResult<()> {
+    let mut file = File::create(&tmp_format(&conf.name))?;
+    file.write_all("Received Notifications : \n".as_bytes())?;
+    Ok(())
+}
+
 #[derive(BachModuleStdTests)]
 pub struct Reporter {
     ctrl: Arc<AtomicU8>,
@@ -101,11 +107,10 @@ impl Module for Reporter {
         if let Some(config_file) = &self.config_file {
             let conf: ReporterConfig =
                 quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
-            let mut file = File::create(&tmp_format(&conf.name))?;
-            file.write_all("Received Notifications : \n".as_bytes())?;
             self.outlet(if self.name().contains("error") {
                 Packet::new_ne("ERROR", &self.name(), "Init")
             } else {
+                init_tmp_file(&conf)?;
                 Packet::new_ng(
                     &format!("{} reporter module initialized", &self.name()),
                     &self.name(),
@@ -169,6 +174,17 @@ impl Module for Reporter {
             Ok(())
         };
 
+        let init_file_wrap = move || -> ModResult<()> {
+            if let Some(config_file) = &self.config_file {
+                let conf: ReporterConfig =
+                    quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
+                if !std::path::Path::new(&tmp_format(&conf.name)).exists() {
+                    init_tmp_file(&conf)?;
+                }
+            }
+            Ok(())
+        };
+
         let route = move |p: Packet| -> ModResult<()> {
             match p {
                 Packet::NotifyCom(_) => filter(p, "INFO")?,
@@ -179,6 +195,14 @@ impl Module for Reporter {
             }
             Ok(())
         };
+        
+        if init_file_wrap().is_err() {
+            println!(
+                "Reporter {} cannot create file {}",
+                &self.name(),
+                tmp_format(&self.name()),
+            );
+        }
 
         if route(p).is_err() {
             println!(
