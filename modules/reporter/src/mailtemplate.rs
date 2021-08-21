@@ -11,13 +11,12 @@ fn gen_template() -> String {
         <body>
             <h3>Bach Backup Report<h3>
             <p>
-                <span style=\"font-weight: bold\">Overall Status:</span>
-                <span>{{overall}}</span>
+                <strong>Overall Status: {{overall}}</strong>
             </p>
             <p>
                 <h4>Status Messages</h4>
                 {{#each lines}}
-                <span style=\"color: {{this.color}}\">{{this.text}}</span><br />
+                <span>{{this.text}}</span><br />
                 {{/each}}
             </p>
         </body>
