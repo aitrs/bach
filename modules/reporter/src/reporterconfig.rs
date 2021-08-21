@@ -27,7 +27,7 @@ impl ReporterCommand {
                 cmd.arg(arg.0);
             }
         }
-
+        println!("{:?}", cmd);
         Ok(cmd)
     }
 }

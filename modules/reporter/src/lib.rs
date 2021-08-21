@@ -100,6 +100,8 @@ impl Module for Reporter {
                     println!("{}", lines.join("\n"));
                     let mail_and_severity =
                         gen_mail(lines, &conf.clone().template.map(PathBuf::from))?;
+                    println!("{}", mail_and_severity.0);
+                    println!("{}", mail_and_severity.1);
 
                     if check_level(&conf, &mail_and_severity.1) {
                         let stat = conf
