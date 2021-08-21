@@ -26,6 +26,18 @@ fn init_tmp_file(conf: &ReporterConfig) -> ModResult<()> {
     Ok(())
 }
 
+fn translate_severity(sev: String) -> String {
+    if sev.eq("debug") {
+        "Good".to_string()
+    } else if sev.eq("warn") || sev.eq("warning") {
+        "Warnings".to_string()
+    } else if sev.eq("error") {
+        "Errors".to_string() 
+    } else {
+        "Unknown Status".to_string()
+    }
+}
+
 #[derive(BachModuleStdTests)]
 pub struct Reporter {
     ctrl: Arc<AtomicU8>,
@@ -100,7 +112,9 @@ impl Module for Reporter {
                     
                     if check_level(&conf, &mail_and_severity.1) {
                         let stat = conf
-                            .mailcmd(mail_and_severity.0, mail_and_severity.1)?
+                            .mailcmd(
+                                mail_and_severity.0, 
+                                translate_severity(mail_and_severity.1))?
                             .status()?;
 
                         if !stat.success() {
