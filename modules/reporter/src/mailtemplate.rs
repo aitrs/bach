@@ -1,5 +1,6 @@
 use bach_module::ModResult;
 use handlebars::Handlebars;
+use regex::Regex;
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
@@ -81,8 +82,11 @@ pub fn gen_mail(lines: Vec<String>, template: &Option<PathBuf>) -> ModResult<(St
 
     let reg = Handlebars::new();
     let contents = reg.render_template(&temp_contents, &args)?;
+    let clean = Regex::new(r"\s{2,}")?
+        .replace_all(&contents, "")
+        .to_string();
     Ok((
-        contents,
+        clean,
         if severity_level == 1 {
             "warning".to_string()
         } else if severity_level == 2 {
@@ -108,25 +112,8 @@ mod tests {
             &None,
         )?;
         assert_eq!(
-            mail,
-            "
-    <html>
-        <head></head>
-        <body>
-            <h3>Bach Backup Report<h3>
-            <p>
-                <span style=\"font-weight: bold\">Overall Status:</span>
-                <span>ERROR</span>
-            </p>
-            <p>
-                <h4>Status Messages</h4>
-                <span style=\"color: default\">foo</span><br />
-                <span style=\"color: red\">Error: bar</span><br />
-                <span style=\"color: yellow\">Warn: baz</span><br />
-            </p>
-        </body>
-    </html>
-    "
+            mail.0,
+            "<html><head></head><body><h3>Bach Backup Report<h3><p><strong>Overall Status: ERROR</strong></p><p><h4>Status Messages</h4><span>foo</span><br /><span>Error: bar</span><br /><span>Warn: baz</span><br /></p></body></html>"
             .to_string()
         );
         Ok(())

@@ -99,6 +99,14 @@ impl From<RenderError> for ModError {
     }
 }
 
+impl From<regex::Error> for ModError {
+    fn from(item: regex::Error) -> Self {
+        ModError {
+            message: item.to_string(),
+        }
+    }
+}
+
 impl From<Box<dyn std::any::Any + Send>> for ModError {
     fn from(_: Box<dyn std::any::Any + Send>) -> Self {
         ModError {

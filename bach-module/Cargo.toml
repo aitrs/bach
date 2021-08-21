@@ -10,3 +10,4 @@ edition = "2018"
 bach-bus = { path = "../bach-bus" }
 quick-xml =  { version = "0.22.0", features = ["serialize"] }
 handlebars = "4.1.2"
+regex = "1.5.4"

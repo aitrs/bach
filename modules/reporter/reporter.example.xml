@@ -1,4 +1,4 @@
-<reporter name="test" template="machin.xml" level="debug">
+<reporter name="test" level="debug">
 	<source>test1</source>
 	<source>test2</source>
 	<mail-command>

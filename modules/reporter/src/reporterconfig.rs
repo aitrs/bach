@@ -17,7 +17,7 @@ impl ReporterCommand {
                 "Missing at least MAILBODY placeholder in mail command",
             ));
         }
-        
+
         let mut vecopy = self.arg.clone();
         let mut cmd = Command::new(vecopy.remove(0).0);
         for arg in vecopy {
