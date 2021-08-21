@@ -88,7 +88,10 @@ impl Module for Reporter {
                 if let Some(path) = config_path.lock()?.borrow().as_ref() {
                     let conf: ReporterConfig =
                         quick_xml::de::from_reader(BufReader::new(File::open(path)?))?;
-                    let tmpfile = File::open(&tmp_format(&conf.name))?;
+                    let fname = tmp_format(&conf.name);
+                    println!("Opening file {}", &fname);
+                    let tmpfile = File::open(&fname)?;
+                    println!("Opened");
                     let rawlines = BufReader::new(tmpfile).lines();
                     let mut lines: Vec<String> = Vec::new();
                     for l in rawlines.flatten() {
