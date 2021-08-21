@@ -11,7 +11,7 @@ pub struct ReporterCommand {
 }
 
 impl ReporterCommand {
-    pub fn to_cmd(&self, mailbody: String) -> ModResult<Command> {
+    pub fn to_cmd(&self, mailbody: String, overall: String) -> ModResult<Command> {
         if self.arg.len() <= 1 {
             return Err(ModError::new(
                 "Missing at least MAILBODY placeholder in mail command",
@@ -23,6 +23,8 @@ impl ReporterCommand {
         for arg in vecopy {
             if arg.0.eq("MAILBODY") {
                 cmd.arg(mailbody.clone());
+            } else if arg.0.contains("STATUS") {
+                cmd.arg(arg.0.replace("STATUS", &overall));
             } else {
                 cmd.arg(arg.0);
             }
@@ -43,7 +45,7 @@ pub struct ReporterConfig {
 }
 
 impl ReporterConfig {
-    pub fn mailcmd(&self, mailbody: String) -> ModResult<Command> {
-        self.mail_cmd.to_cmd(mailbody)
+    pub fn mailcmd(&self, mailbody: String, overall: String) -> ModResult<Command> {
+        self.mail_cmd.to_cmd(mailbody, overall)
     }
 }

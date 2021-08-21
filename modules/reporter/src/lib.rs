@@ -97,10 +97,10 @@ impl Module for Reporter {
                     }
                     let mail_and_severity =
                         gen_mail(lines, &conf.clone().template.map(PathBuf::from))?;
-
+                    
                     if check_level(&conf, &mail_and_severity.1) {
                         let stat = conf
-                            .mailcmd(mail_and_severity.0.replace('\n', ""))?
+                            .mailcmd(mail_and_severity.0, mail_and_severity.1)?
                             .status()?;
 
                         if !stat.success() {
