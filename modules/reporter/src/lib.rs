@@ -89,19 +89,14 @@ impl Module for Reporter {
                     let conf: ReporterConfig =
                         quick_xml::de::from_reader(BufReader::new(File::open(path)?))?;
                     let fname = tmp_format(&conf.name);
-                    println!("Opening file {}", &fname);
                     let tmpfile = File::open(&fname)?;
-                    println!("Opened");
                     let rawlines = BufReader::new(tmpfile).lines();
                     let mut lines: Vec<String> = Vec::new();
                     for l in rawlines.flatten() {
                         lines.push(l);
                     }
-                    println!("{}", lines.join("\n"));
                     let mail_and_severity =
                         gen_mail(lines, &conf.clone().template.map(PathBuf::from))?;
-                    println!("{}", mail_and_severity.0);
-                    println!("{}", mail_and_severity.1);
 
                     if check_level(&conf, &mail_and_severity.1) {
                         let stat = conf
