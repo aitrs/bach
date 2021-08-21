@@ -17,8 +17,13 @@ impl ReporterCommand {
                 "Missing at least MAILBODY placeholder in mail command",
             ));
         }
-
+        
         let mut vecopy = self.arg.clone();
+        let mut debugst = String::new();
+        for v in &vecopy {
+            debugst.push_str(&v.0);
+        }
+        println!("Got args {}", debugst);
         let mut cmd = Command::new(vecopy.remove(0).0);
         for arg in vecopy {
             if arg.0.eq("MAILBODY") {
@@ -27,7 +32,7 @@ impl ReporterCommand {
                 cmd.arg(arg.0);
             }
         }
-        println!("{:?}", cmd);
+        println!("Spawning command {:?}", cmd);
         Ok(cmd)
     }
 }
