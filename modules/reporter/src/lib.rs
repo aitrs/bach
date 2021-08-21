@@ -97,6 +97,7 @@ impl Module for Reporter {
                     for l in rawlines.flatten() {
                         lines.push(l);
                     }
+                    println!("{}", lines.join("\n"));
                     let mail_and_severity =
                         gen_mail(lines, &conf.clone().template.map(PathBuf::from))?;
 
