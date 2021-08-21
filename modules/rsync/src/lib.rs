@@ -3,6 +3,7 @@ use ansi_term::Colour::Blue;
 use ansi_term::Colour::Purple;
 use bach_bus::packet::*;
 use bach_module::*;
+use crossbeam::thread;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
@@ -10,6 +11,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
+    mpsc::sync_channel,
     Arc, Mutex,
 };
 use std::time::{Duration, Instant};
@@ -179,7 +181,7 @@ fn do_mount(
     stackc: &Arc<Mutex<RefCell<Vec<Packet>>>>,
     namecc: &str,
 ) -> ModResult<bool> {
-    println!("Doing Mount");
+    clog("Doing Mount".to_string(), true);
     let mount = item.mount_target();
     if !mount.unwrap_or(false) {
         stackc.lock()?.borrow_mut().push(Packet::new_ne(
@@ -187,10 +189,10 @@ fn do_mount(
             namecc,
             "Mount",
         ));
-        println!("Mount failed");
+        clog("Mount Failed".to_string(), true);
         Ok(false)
     } else {
-        println!("Mount success");
+        clog("Mount Success".to_string(), true);
         Ok(true)
     }
 }
@@ -241,17 +243,32 @@ fn wait_or_kill(
 ) -> ModResult<Option<(std::process::ExitStatus, String)>> {
     let start = Instant::now();
     let runc = Arc::downgrade(run_control);
-    let stat = loop {
-        if let Some(st) = child.try_wait()? {
-            let buf = match &mut child.stdout {
-                Some(ref mut out) => {
-                    let mut res = String::new();
-                    out.read_to_string(&mut res)?;
-                    res
+    let (tx, rx) = sync_channel::<String>(2);
+    let readrun = AtomicBool::new(true);
+
+    thread::scope(|scope| {
+        scope.spawn(|_| -> ModResult<()> {
+            if let Some(stream) = &mut child.stderr {
+                while readrun.load(Ordering::SeqCst) {
+                    let mut buffer = String::new();
+                    stream.read_to_string(&mut buffer)?;
+                    tx.send(buffer).unwrap();
                 }
-                None => "".to_string(),
-            };
-            break Some((st, buf));
+            }
+            Ok(())
+        });
+    })?;
+
+    let mut stdoutbuffer = String::new();
+    let stat = loop {
+        if let Ok(readbuffer) = rx.try_recv() {
+            if !readbuffer.is_empty() {
+                stdoutbuffer.push_str(&readbuffer);
+            }
+        }
+
+        if let Some(st) = child.try_wait()? {
+            break Some((st, stdoutbuffer));
         }
 
         if let Some(timeout) = timeout {
@@ -274,6 +291,7 @@ fn wait_or_kill(
 
         std::thread::sleep(Duration::from_millis(100));
     };
+    readrun.store(false, Ordering::SeqCst);
     Ok(stat)
 }
 

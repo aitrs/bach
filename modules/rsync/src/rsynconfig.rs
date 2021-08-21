@@ -173,9 +173,6 @@ impl RsynConfigItem {
     }
 
     pub fn check_host_ping(&self) -> bool {
-        if let Some(h) = &self.host {
-            println!("Host IP {:?}", h.ip());
-        }
         match &self.host {
             Some(h) => match h.ping_test(5) {
                 Ok(count) => count > 2,

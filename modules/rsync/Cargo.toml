@@ -16,6 +16,7 @@ serde-xml-rs = "0.4.1"
 quick-xml =  { version = "0.22.0", features = ["serialize"] }
 bach-module-tests = { path = "../../bach-module-tests" }
 ansi_term = "0.12.1"
+crossbeam = "0.8.1"
 
 [lib]
 crate-type = [ "dylib", "lib" ]
