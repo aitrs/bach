@@ -376,6 +376,8 @@ impl RsynConfigItem {
                         ))
                         .arg("ls")
                         .arg(&self.genpathstr(&self.ttype.to_enum(), self.day_by_day))
+                        .stderr(Stdio::piped())
+                        .stdout(Stdio::piped())
                         .spawn()?;
                     Ok(cmd.wait()?.success())
                 }

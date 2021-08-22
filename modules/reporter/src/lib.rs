@@ -47,11 +47,13 @@ pub struct Reporter {
 }
 
 impl Reporter {
-    pub fn new(config_filename: Option<String>) -> Self {
+    pub fn new(config_filename: &Option<String>) -> Self {
+        #[cfg(feature = "debug")]
+        println!("Reporter instanciated with {:?}", &config_filename.clone());
         Reporter {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
-            config_file: config_filename.map(PathBuf::from),
+            config_file: config_filename.clone().map(PathBuf::from),
             out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
@@ -133,21 +135,34 @@ impl Module for Reporter {
     }
 
     fn init(&self) -> ModResult<()> {
+        #[cfg(feature = "debug")]
+        println!("Initializing reporter with {:?}", &self.config_file);
         if let Some(config_file) = &self.config_file {
-            let conf: ReporterConfig =
-                quick_xml::de::from_reader(BufReader::new(File::open(config_file)?))?;
-            self.outlet(if self.name().contains("error") {
-                Packet::new_ne("ERROR", &self.name(), "Init")
-            } else {
-                init_tmp_file(&conf)?;
-                Packet::new_ng(
-                    &format!("{} reporter module initialized", &self.name()),
-                    &self.name(),
-                    "Init",
-                )
-            });
+            match quick_xml::de::from_reader(BufReader::new(File::open(config_file)?)) {
+                Ok(conf) => {
+                    self.outlet(if self.name().contains("error") {
+                        Packet::new_ne("ERROR", &self.name(), "Init")
+                    } else {
+                        init_tmp_file(&conf)?;
+                        Packet::new_ng(
+                            &format!("{} reporter module initialized", &self.name()),
+                            &self.name(),
+                            "Init",
+                        )
+                    });
+                    Ok(())
+                },
+                Err(e) => {
+                    Err(ModError::new(
+                        &format!("Reporter : Config File: {}:{}", config_file.to_str().unwrap_or("NOT FOUND"), e.to_string())
+                    ))
+                }
+            }
+        } else {
+            Err(ModError::new(
+                "Reporter : No config file passed"
+            ))
         }
-        Ok(())
     }
 
     fn destroy(&self) -> ModResult<()> {

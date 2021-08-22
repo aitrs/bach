@@ -80,24 +80,24 @@ impl ModuleManager {
         let mut ret = ModuleManager::new(Duration::from_secs(conf.respawn_duration));
         for m in conf.modules {
             #[cfg(feature = "modular")]
-            ret.load(m.file, m.whence, m.config)?;
+            ret.load(m.file, m.whence, &m.config)?;
 
             #[cfg(feature = "static")]
-            ret.load(m.name, m.whence, m.config)?;
+            ret.load(m.name, m.whence, &m.config)?;
         }
         Ok(ret)
     }
 
     #[cfg(feature = "modular")]
-    pub fn load<P: AsRef<OsStr>>(
+    pub fn load<P: AsRef<OsStr> + std::fmt::Debug + Clone>(
         &mut self,
         filename: P,
         cyclewhence: Option<Whence>,
-        config_filename: Option<String>,
+        config_filename: &Option<String>,
     ) -> ModResult<usize> {
         let size: usize;
         unsafe {
-            type ModGen = unsafe fn(Option<String>) -> Box<dyn Module>;
+            type ModGen = unsafe fn(&Option<String>) -> Box<dyn Module>;
             let lib = unwind_moderror!(Library::new(filename.as_ref()));
             let cons: Symbol<ModGen> = unwind_moderror!(lib.get(b"bach_create_module"));
             let module: Box<dyn Module> = cons(config_filename);
@@ -116,7 +116,7 @@ impl ModuleManager {
         &mut self,
         name: String,
         cyclewhence: Option<Whence>,
-        config_filename: Option<String>,
+        config_filename: &Option<String>,
     ) -> ModResult<usize> {
         let size: usize = 0;
         self.modules.push(ModuleManagerContainer {

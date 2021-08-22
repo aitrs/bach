@@ -266,9 +266,9 @@ macro_rules! mk_create_module {
     ($plugin_type: ty, $constructor:path) => {
         #[no_mangle]
         pub extern "C" fn bach_create_module(
-            config_filename: Option<String>,
+            config_filename: &Option<String>,
         ) -> Box<dyn $crate::Module> {
-            let constructor: fn(Option<String>) -> $plugin_type = $constructor;
+            let constructor: fn(&Option<String>) -> $plugin_type = $constructor;
             let object = constructor(config_filename);
             let boxed: Box<dyn $crate::Module> = Box::new(object);
             boxed

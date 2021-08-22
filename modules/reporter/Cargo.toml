@@ -15,5 +15,11 @@ bach-module-tests = { path = "../../bach-module-tests" }
 chrono = "0.4.19"
 handlebars = "4.1.2"
 regex = "1.5.4"
+
 [lib]
 crate-type = [ "dylib", "lib" ]
+
+[features]
+default = ["modular"]
+modular = []
+debug = []

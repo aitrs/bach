@@ -31,11 +31,13 @@ pub struct Rsync {
 }
 
 impl Rsync {
-    pub fn new(config_filename: Option<String>) -> Self {
+    pub fn new(config_filename: &Option<String>) -> Self {
+        #[cfg(feature = "debug")]
+        println!("Rsync module instanciated with {:?}", &config_filename.clone());
         Rsync {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),
-            config_file: config_filename.map(PathBuf::from),
+            config_file: config_filename.clone().map(PathBuf::from),
             out_stack: Arc::new(Mutex::new(RefCell::new(Vec::new()))),
         }
     }
@@ -76,7 +78,7 @@ fn perform_checks(
         clog(format.clone(), false);
         if let Ok(cell) = stack.lock() {
             cell.borrow_mut()
-                .push(Packet::new_ng(&format, label, "Prelude checks"));
+                .push(Packet::new_ne(&format, label, "Prelude checks"));
         }
         false
     };
@@ -300,20 +302,22 @@ fn wait_or_kill(
 
 impl Module for Rsync {
     fn name(&self) -> String {
-        if let Some(config_file) = &self.config_file {
+        #[cfg(feature = "debug")]
+        println!("Getting name from {:?}", &self.config_file);
+        if let Some(cfg) = &self.config_file.clone() {
             let conf: RsynConfig =
-                match quick_xml::de::from_reader(BufReader::new(match File::open(&config_file) {
+                match quick_xml::de::from_reader(BufReader::new(match File::open(cfg) {
                     Ok(f) => f,
                     Err(e) => {
                         return format!(
                             "{} : {}",
-                            config_file.to_str().unwrap_or("NOT FOUND"),
+                            cfg.to_str().unwrap_or("NOT FOUND"),
                             e.to_string()
                         )
                     }
                 })) {
                     Ok(conf) => conf,
-                    Err(e) => return e.to_string(),
+                    Err(e) => return format!("Config file {:?} error {}", cfg, e.to_string()),
                 };
 
             conf.label
@@ -406,7 +410,11 @@ impl Module for Rsync {
     }
 
     fn init(&self) -> ModResult<()> {
-        self.outlet(if self.name().contains("error") {
+        #[cfg(feature = "debug")]
+        println!("Initializing Rsync Module");
+
+        self.outlet(if self.name().contains("error") || 
+                    self.name().contains("Unexpected EOF") {
             Packet::new_ne("ERROR", &self.name(), "Init")
         } else {
             Packet::new_ng(

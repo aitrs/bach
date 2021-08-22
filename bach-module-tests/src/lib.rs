@@ -104,11 +104,11 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             #[test]
             fn #name_test_ident () {
-                let module = #st_name::new(None);
+                let module = #st_name::new(&None);
                 assert!(!module.name().is_empty());
                 if let Ok(configs) = list_configs() {
                     for c in configs {
-                        let module = #st_name::new(Some(c));
+                        let module = #st_name::new(&Some(c));
                         assert!(!module.name().is_empty());
                     }
                 }
@@ -116,12 +116,12 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             #[test]
             fn #init_test_ident () {
-                let module = #st_name::new(None);
+                let module = #st_name::new(&None);
                 let result = module.init();
                 assert!(result.is_ok());
                 if let Ok(configs) = list_configs() {
                     for c in configs {
-                        let module = #st_name::new(Some(c));
+                        let module = #st_name::new(&Some(c));
                         let result = module.init();
                         assert!(result.is_ok());
                     }
@@ -130,14 +130,14 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             #[test]
             fn #input_test_ident () {
-                let module = #st_name::new(None);
+                let module = #st_name::new(&None);
                 let start = Instant::now();
                 let termp = Packet::Terminate;
                 module.input(termp);
                 assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
                 if let Ok(configs) = list_configs() {
                     for c in configs {
-                        let module = #st_name::new(Some(c));
+                        let module = #st_name::new(&Some(c));
                         let start = Instant::now();
                         module.inlet(termp);
                         assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
@@ -147,12 +147,12 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             #[test]
             fn #destroy_test_ident () {
-                let module = #st_name::new(None);
+                let module = #st_name::new(&None);
                 let res = module.destroy();
                 assert!(res.is_ok());
                 if let Ok(configs) = list_configs() {
                     for c in configs {
-                        let module = #st_name::new(Some(c));
+                        let module = #st_name::new(&Some(c));
                         let res = module.destroy();
                         assert!(res.is_ok());
                     }
@@ -161,7 +161,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             #[test]
             fn #outlet_test_ident () {
-                let module = #st_name::new(None);
+                let module = #st_name::new(&None);
                 module.outlet(Packet::new_alive(&module.name()));
                 let out = module.output();
                 assert!(out.is_some());
@@ -170,13 +170,13 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
 
             #[test]
             fn #output_test_ident () {
-                let module = #st_name::new(None);
+                let module = #st_name::new(&None);
                 let start = Instant::now();
                 module.output();
                 assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
                 if let Ok(configs) = list_configs() {
                     for c in configs {
-                        let module = #st_name::new(Some(c));
+                        let module = #st_name::new(&Some(c));
                         let start = Instant::now();
                         module.output();
                         assert!(start.elapsed().le(&Duration::from_millis(NONBLOCK_TIMEOUT)));
@@ -196,7 +196,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
                         None => None,
                     };
 
-                    let module = #st_name::new(opt);
+                    let module = #st_name::new(&opt);
                     let message_stack: Arc<Mutex<RefCell<Vec<Packet>>>>
                         = Arc::new(Mutex::new(RefCell::new(Vec::new())));
                     let run_control: Arc<AtomicU8> = Arc::new(AtomicU8::new(bach_module::RUN_RUNNING));
@@ -236,7 +236,7 @@ pub fn _bach_std_test_derive(input: TokenStream) -> TokenStream {
             #[test]
             fn #spawn_test_ident () {
                 let test_spawn = |opt: Option<String>| {
-                    let module = #st_name::new(opt);
+                    let module = #st_name::new(&opt);
                     module.init().unwrap();
                     let start = Instant::now();
                     let joinhandle = module.spawn();

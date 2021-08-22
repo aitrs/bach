@@ -25,3 +25,4 @@ reporter = { path = "../modules/reporter", optional = true }
 default = ["modular"]
 modular = ["libloading"]
 static = ["stdlogger", "rsync", "reporter"]
+debug = []

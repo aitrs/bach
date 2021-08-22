@@ -139,11 +139,15 @@ pub fn mk_tcp_connection(config: &DaemonConfig) -> DaemonResult<TcpListener> {
     let port = config.port.0;
     let cstr = format!("{}:{}", config.ip.0, port);
     let stream = TcpListener::bind(&cstr)?;
+    #[cfg(feature = "debug")]
+    println!("Daemon made TCP connection with IP {} on port {}", config.ip.0, port);
 
     Ok(stream)
 }
 
 fn process_tcp_command_list(list: TcpCommandList) -> DaemonResult<()> {
+    #[cfg(feature = "debug")]
+    println!("TCP connection got LIST command");
     match list {
         TcpCommandList::Loaded => {
             let list: Vec<String> = MANAGER.lock()?.get_module_list()?;
@@ -180,7 +184,7 @@ pub fn spawn() -> DaemonResult<()> {
     let config: DaemonConfig = DaemonConfig::load()?;
     let tcp = mk_tcp_connection(&config)?;
     let mut run = true;
-
+    
     tcp.set_nonblocking(true)?;
     modulemanager::connect(&MANAGER, &BUS)?;
     MANAGER.lock()?.spawn_all()?;

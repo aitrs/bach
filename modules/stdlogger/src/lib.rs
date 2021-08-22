@@ -90,7 +90,7 @@ impl Module for StdLogger {
 }
 
 impl StdLogger {
-    pub fn new(_config_filename: Option<String>) -> Self {
+    pub fn new(_config_filename: &Option<String>) -> Self {
         StdLogger {
             ctrl: Arc::new(AtomicU8::new(0)),
             out_alive: Arc::new(AtomicBool::new(false)),

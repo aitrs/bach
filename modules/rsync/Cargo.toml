@@ -20,3 +20,8 @@ crossbeam = "0.8.1"
 
 [lib]
 crate-type = [ "dylib", "lib" ]
+
+[features]
+default = ["modular"]
+modular = []
+debug = []
