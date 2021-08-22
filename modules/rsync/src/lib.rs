@@ -3,7 +3,6 @@ use ansi_term::Colour::Blue;
 use ansi_term::Colour::Purple;
 use bach_bus::packet::*;
 use bach_module::*;
-use crossbeam::thread;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
@@ -238,26 +237,27 @@ fn do_umount(
 
 fn wait_or_kill(
     run_control: &Arc<AtomicU8>,
-    child: &mut std::process::Child,
+    child: &Arc<Mutex<std::process::Child>>,
     timeout: Option<u64>,
 ) -> ModResult<Option<(std::process::ExitStatus, String)>> {
     let start = Instant::now();
     let runc = Arc::downgrade(run_control);
     let (tx, rx) = sync_channel::<String>(2);
-    let readrun = AtomicBool::new(true);
+    let readrun = Arc::new(AtomicBool::new(true));
+    let readrunc = readrun.clone();
+    let cchild = child.clone();
 
-    thread::scope(|scope| {
-        scope.spawn(|_| -> ModResult<()> {
-            if let Some(stream) = &mut child.stderr {
-                while readrun.load(Ordering::SeqCst) {
-                    let mut buffer = String::new();
-                    stream.read_to_string(&mut buffer)?;
-                    tx.send(buffer).unwrap();
-                }
+    let th = std::thread::spawn(move || -> ModResult<()> {
+        if let Some(stream) = &mut cchild.lock()?.stderr {
+            while readrunc.load(Ordering::SeqCst) {
+                let mut buffer = String::new();
+                stream.read_to_string(&mut buffer)?;
+                tx.send(buffer).unwrap();
             }
-            Ok(())
-        });
-    })?;
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
+    });
 
     let mut stdoutbuffer = String::new();
     let stat = loop {
@@ -266,32 +266,35 @@ fn wait_or_kill(
                 stdoutbuffer.push_str(&readbuffer);
             }
         }
+        if let Ok(mut chlock) = child.try_lock() {
+            if let Some(st) = chlock.try_wait()? {
+                break Some((st, stdoutbuffer));
+            }
 
-        if let Some(st) = child.try_wait()? {
-            break Some((st, stdoutbuffer));
-        }
+            if let Some(timeout) = timeout {
+                if start.elapsed().gt(&Duration::from_secs(timeout * 60)) {
+                    chlock.kill()?;
+                    break None;
+                }
+            }
 
-        if let Some(timeout) = timeout {
-            if start.elapsed().gt(&Duration::from_secs(timeout * 60)) {
-                child.kill()?;
+            if let Some(ctrlc) = runc.upgrade() {
+                let c = ctrlc.load(Ordering::SeqCst);
+                if c == bach_module::RUN_TERM || c == bach_module::RUN_EARLY_TERM {
+                    chlock.kill()?;
+                    break None;
+                }
+            } else {
+                chlock.kill()?;
                 break None;
             }
-        }
 
-        if let Some(ctrlc) = runc.upgrade() {
-            let c = ctrlc.load(Ordering::SeqCst);
-            if c == bach_module::RUN_TERM || c == bach_module::RUN_EARLY_TERM {
-                child.kill()?;
-                break None;
-            }
-        } else {
-            child.kill()?;
-            break None;
+            std::thread::sleep(Duration::from_millis(100));
         }
-
-        std::thread::sleep(Duration::from_millis(100));
     };
     readrun.store(false, Ordering::SeqCst);
+    let res = th.join()?;
+    res?;
     Ok(stat)
 }
 
@@ -337,8 +340,9 @@ impl Module for Rsync {
                         {
                             clog("Passed checks".to_string(), true);
                             let mut cmd = item.to_cmd();
-                            let mut child =
-                                cmd.stdout(Stdio::null()).stderr(Stdio::piped()).spawn()?;
+                            let child = Arc::new(Mutex::new(
+                                cmd.stdout(Stdio::null()).stderr(Stdio::piped()).spawn()?,
+                            ));
                             run_control.store(bach_module::RUN_RUNNING, Ordering::SeqCst);
                             clog(format!("Spawning {:?}", cmd), true);
 
@@ -350,7 +354,8 @@ impl Module for Rsync {
                                 ),
                                 message_stack,
                             )?;
-                            let w = wait_or_kill(run_control, &mut child, item.timeout)?;
+
+                            let w = wait_or_kill(run_control, &child, item.timeout)?;
                             let stderr = match &w {
                                 Some(p) => p.1.to_string(),
                                 None => "".to_string(),

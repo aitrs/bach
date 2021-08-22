@@ -32,7 +32,7 @@ fn translate_severity(sev: String) -> String {
     } else if sev.eq("warn") || sev.eq("warning") {
         "Warnings".to_string()
     } else if sev.eq("error") {
-        "Errors".to_string() 
+        "Errors".to_string()
     } else {
         "Unknown Status".to_string()
     }
@@ -109,12 +109,10 @@ impl Module for Reporter {
                     }
                     let mail_and_severity =
                         gen_mail(lines, &conf.clone().template.map(PathBuf::from))?;
-                    
+
                     if check_level(&conf, &mail_and_severity.1) {
                         let stat = conf
-                            .mailcmd(
-                                mail_and_severity.0, 
-                                translate_severity(mail_and_severity.1))?
+                            .mailcmd(mail_and_severity.0, translate_severity(mail_and_severity.1))?
                             .status()?;
 
                         if !stat.success() {

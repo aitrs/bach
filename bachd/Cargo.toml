@@ -17,13 +17,11 @@ bach-module = { path = "../bach-module" }
 bach-bus = { path = "../bach-bus" }
 lazy_static = "1.4.0"
 libloading = { version = "0.7.0", optional = true }
-dummy = { path = "../modules/dummy", optional = true }
 stdlogger = { path = "../modules/stdlogger", optional = true }
 rsync = { path = "../modules/rsync", optional = true }
-noreply-select = { path = "../modules/noreply-select", optional = true }
 reporter = { path = "../modules/reporter", optional = true }
 
 [features]
 default = ["modular"]
 modular = ["libloading"]
-static = ["dummy", "stdlogger", "rsync", "noreply-select", "reporter"]
+static = ["stdlogger", "rsync", "reporter"]
