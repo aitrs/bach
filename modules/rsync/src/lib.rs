@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
-    mpsc::sync_channel,
     Arc, Mutex,
 };
 use std::time::{Duration, Instant};
@@ -244,33 +243,15 @@ fn wait_or_kill(
 ) -> ModResult<Option<(std::process::ExitStatus, String)>> {
     let start = Instant::now();
     let runc = Arc::downgrade(run_control);
-    let (tx, rx) = sync_channel::<String>(2);
-    let readrun = Arc::new(AtomicBool::new(true));
-    let readrunc = readrun.clone();
-    let cchild = child.clone();
 
-    let th = std::thread::spawn(move || -> ModResult<()> {
-        if let Some(stream) = &mut cchild.lock()?.stderr {
-            while readrunc.load(Ordering::SeqCst) {
-                let mut buffer = String::new();
-                stream.read_to_string(&mut buffer)?;
-                tx.send(buffer).unwrap();
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        Ok(())
-    });
-
-    let mut stdoutbuffer = String::new();
     let stat = loop {
-        if let Ok(readbuffer) = rx.try_recv() {
-            if !readbuffer.is_empty() {
-                stdoutbuffer.push_str(&readbuffer);
-            }
-        }
         if let Ok(mut chlock) = child.try_lock() {
             if let Some(st) = chlock.try_wait()? {
-                break Some((st, stdoutbuffer));
+                let mut buffer = String::new();
+                if let Some(ref mut stream) = &mut chlock.stderr {
+                    stream.read_to_string(&mut buffer)?;
+                }
+                break Some((st, buffer));
             }
 
             if let Some(timeout) = timeout {
@@ -294,9 +275,6 @@ fn wait_or_kill(
             std::thread::sleep(Duration::from_millis(100));
         }
     };
-    readrun.store(false, Ordering::SeqCst);
-    let res = th.join()?;
-    res?;
     Ok(stat)
 }
 
