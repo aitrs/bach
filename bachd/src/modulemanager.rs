@@ -13,6 +13,7 @@ use std::ffi::OsStr;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
+use chrono::prelude::*;
 
 pub struct ModuleManagerContainer {
     pub module: Box<dyn Module>,
@@ -275,7 +276,10 @@ impl ModuleManager {
     }
 
     pub fn fire_cyclic(&self) -> ModResult<()> {
-        let timestamp = chrono::Local::now().timestamp() as u64;
+        let now: chrono::DateTime<chrono::Local> = chrono::Local::now();
+        let stamp = now.timestamp() as i64;
+        let offset = now.offset().fix().local_minus_utc() as i64;
+        let timestamp = (stamp + offset) as u64;
         for m in self.spwned.borrow().iter() {
             match &m.whence {
                 Some(w) => {

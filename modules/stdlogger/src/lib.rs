@@ -52,7 +52,8 @@ impl Module for StdLogger {
     }
 
     fn inlet(&self, p: Packet) {
-        let nowstr = chrono::Utc::now().to_rfc2822();
+        let now = chrono::Local::now();
+        let nowstr = now.to_rfc2822();
         match p {
             Packet::NotifyGood(_) => {
                 println!(

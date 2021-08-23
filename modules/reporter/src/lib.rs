@@ -211,7 +211,7 @@ impl Module for Reporter {
                         .append(true)
                         .open(&tmp_format(&conf.name))?;
                     let mut file = LineWriter::new(file);
-                    let nowstr = chrono::Utc::now().to_rfc2822();
+                    let nowstr = chrono::Local::now().to_rfc2822();
                     let form = format!("[{}] {}:{}\n", nowstr, prefix, notif.message);
                     file.write_all(form.as_bytes())?;
                 }

@@ -316,7 +316,6 @@ impl Module for Rsync {
                     for item in config.synchros {
                         let namecc = name.lock()?.borrow().to_string();
                         clog(format!("Config name: {}", namecc), true);
-
                         if perform_checks(&item, message_stack, &namecc)
                             && do_mount(&item, message_stack, &namecc)?
                         {

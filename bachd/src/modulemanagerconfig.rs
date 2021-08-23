@@ -1,9 +1,9 @@
 use bach_module::{ModError, ModResult};
-use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
+use chrono::prelude::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Whence {
@@ -12,7 +12,7 @@ pub struct Whence {
 }
 
 fn get_month_len_as_secs(month: u64) -> u64 {
-    let now = Utc::now();
+    let now = Local::now();
     match month {
         1 => 2678400,
         2 => {
@@ -38,7 +38,7 @@ fn get_month_len_as_secs(month: u64) -> u64 {
 
 impl Whence {
     pub fn get_whence(&self) -> ModResult<u64> {
-        let now = Utc::now();
+        let now: chrono::DateTime<chrono::Local> = chrono::Local::now();
         let yse = now.year() as u64 - 1970;
         let nyb = yse / 4;
         let nyn = yse - nyb;
@@ -57,9 +57,8 @@ impl Whence {
             ret = 3600;
         } else {
             let h: u64 = self.hour.parse()?;
-            for _ in 0..h {
-                ret += 3600;
-            }
+            let secs = h*3600;
+            ret += secs;
         }
 
         if self.min.eq("*") {
